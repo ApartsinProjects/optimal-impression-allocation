@@ -265,7 +265,7 @@
 
 <section class="abstract">
   <h2>Abstract</h2>
-  <p>Serving each ad impression to the campaign the viewer is most likely to click maximizes nothing: campaigns carry contracted impression quotas, and every impression granted to one campaign is denied to all others. This report presents a two-stage architecture that treats ad serving as a global allocation problem, set in the environment best equipped to solve it: a mobile network operator, whose verified subscriber profiles, complete gateway-observed browsing histories, and single stable identity per subscriber support finer audience segmentation and census-grade traffic forecasts than any publisher-side system. An offline stage clusters subscribers by profile and response behavior, estimates click probabilities per campaign and audience segment, forecasts traffic, and solves a transportation-style linear program that allocates every campaign's quota across segments for maximum expected revenue. The resulting plan is compiled into bit-masked lookup tables that an online stage executes per impression in constant time, blending cluster-level click rates through soft membership weights and steering delivery back to the planned trajectory with a pacing index. On a minimal worked instance, planned allocation raises expected clicks 11% over greedy serving with identical inputs. In Monte-Carlo simulation at realistic scale (25 campaigns, 60 segments, 200,000 impressions per run, 20 replications), the planned policy delivers a mean 6.5% revenue lift and 33% more expected clicks than greedy serving on identical event streams, and captures 94% of the clairvoyant offline optimum despite serving against forecast rather than realized traffic. Served responses feed the next planning cycle, closing the loop.</p>
+  <p>A mobile advertising platform serves impressions under hard constraints: each campaign carries a contracted impression quota that must be delivered within its flight; targeting restricts every campaign to specific audiences, time windows, and content categories; per-subscriber frequency caps bound exposures across all inventory; subscribers arrive in unpredictable order; and each decision must complete within the latency of a page load. Under these constraints, serving each impression to the campaign the viewer is most likely to click maximizes nothing: every impression granted to one campaign is denied to all others. This report presents a two-stage architecture that treats ad serving as a global allocation problem, set in the environment best equipped to solve it: a mobile network operator, whose verified subscriber profiles, complete gateway-observed browsing histories, and single stable identity per subscriber support finer audience segmentation and census-grade traffic forecasts than any publisher-side system. An offline stage clusters subscribers by profile and response behavior, estimates click probabilities per campaign and audience segment, forecasts traffic, and solves a transportation-style linear program that allocates every campaign's quota across segments for maximum expected revenue. The resulting plan is compiled into bit-masked lookup tables that an online stage executes per impression in constant time, blending cluster-level click rates through soft membership weights and steering delivery back to the planned trajectory with a pacing index. On a minimal worked instance, planned allocation raises expected clicks 11% over greedy serving with identical inputs. In Monte-Carlo simulation at realistic scale (25 campaigns, 60 segments, 200,000 impressions per run, 20 replications), the planned policy delivers a mean 6.5% revenue lift and 33% more expected clicks than greedy serving on identical event streams, and captures 94% of the clairvoyant offline optimum despite serving against forecast rather than realized traffic. Served responses feed the next planning cycle, closing the loop.</p>
 </section>
 
 <h2><span class="secno">1</span>Summary</h2>
@@ -514,6 +514,82 @@ subject to  &Sigma;<sub>c</sub> x<sub>c,s</sub>  &le;  H<sub>s</sub>        (seg
 </ol>
 <p>Every step is a keyed lookup, a bit-mask test, or arithmetic over a handful of rows. The expensive work, clustering, probability estimation, optimization, was all paid for offline.</p>
 
+<figure>
+  <div class="figpanel">
+  <svg viewBox="0 0 720 372" role="img" aria-label="Seven decision steps and the tables each one reads or writes">
+    <defs>
+      <marker id="arrT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--teal)"/>
+      </marker>
+      <marker id="arrW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+      </marker>
+    </defs>
+    <!-- step boxes -->
+    <g>
+      <rect x="40" y="15"  width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="63"  width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="111" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="159" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="207" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="255" width="360" height="36" rx="5" fill="none" stroke="var(--teal)" stroke-width="2"/>
+      <rect x="40" y="303" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+    </g>
+    <g font-size="13.5">
+      <text x="56" y="38">1&#8194;Find eligible campaigns</text>
+      <text x="56" y="86">2&#8194;Apply exposure policy</text>
+      <text x="56" y="134">3&#8194;Fetch cluster distances</text>
+      <text x="56" y="182">4&#8194;Predict click probability</text>
+      <text x="56" y="230">5&#8194;Compute pacing index</text>
+      <text x="56" y="278" font-weight="700">6&#8194;Decide on one campaign</text>
+      <text x="56" y="326">7&#8194;Update state</text>
+    </g>
+    <!-- inter-step arrows -->
+    <g stroke="var(--fig-line)" stroke-width="1.5">
+      <line x1="220" y1="51"  x2="220" y2="61"/>
+      <line x1="220" y1="99"  x2="220" y2="109"/>
+      <line x1="220" y1="147" x2="220" y2="157"/>
+      <line x1="220" y1="195" x2="220" y2="205"/>
+      <line x1="220" y1="243" x2="220" y2="253"/>
+      <line x1="220" y1="291" x2="220" y2="301"/>
+    </g>
+    <!-- store boxes -->
+    <g>
+      <rect x="540" y="18"  width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+      <rect x="540" y="66"  width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+      <rect x="540" y="114" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+      <rect x="540" y="162" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+      <rect x="540" y="210" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+    </g>
+    <g class="svglabel" text-anchor="middle">
+      <text x="620" y="37">MATCH TABLE</text>
+      <text x="620" y="85">RESPONSE TABLE</text>
+      <text x="620" y="133">CLUSTER TABLE</text>
+      <text x="620" y="181">MODEL TABLE</text>
+      <text x="620" y="229">STATUS TABLE</text>
+    </g>
+    <!-- reads (store -> step), teal -->
+    <g stroke="var(--teal)" stroke-width="1.8">
+      <line x1="538" y1="33"  x2="406" y2="33"  marker-end="url(#arrT)"/>
+      <line x1="538" y1="81"  x2="406" y2="81"  marker-end="url(#arrT)"/>
+      <line x1="538" y1="129" x2="406" y2="129" marker-end="url(#arrT)"/>
+      <line x1="538" y1="177" x2="406" y2="177" marker-end="url(#arrT)"/>
+      <line x1="538" y1="225" x2="406" y2="225" marker-end="url(#arrT)"/>
+    </g>
+    <!-- writes (step 7 -> status + response), accent -->
+    <g stroke="var(--accent)" stroke-width="1.8" fill="none">
+      <path d="M 406 321 C 480 321, 500 250, 536 232" marker-end="url(#arrW)"/>
+      <path d="M 406 330 C 520 330, 528 120, 536 90" marker-end="url(#arrW)"/>
+    </g>
+    <text x="470" y="356" class="svglabel">WRITES</text>
+    <line x1="440" y1="352" x2="462" y2="352" stroke="var(--accent)" stroke-width="1.8"/>
+    <text x="560" y="356" class="svglabel">READS</text>
+    <line x1="530" y1="352" x2="552" y2="352" stroke="var(--teal)" stroke-width="1.8"/>
+  </svg>
+  </div>
+  <figcaption><span class="figno">Figure 3.</span> The seven-step decision path and its data dependencies. Steps 1&ndash;5 each read one pre-computed or live table; step 6 is pure arithmetic over the candidates; step 7 writes the served impression back into the status and response tables, which is also the record that feeds the next offline refinement cycle.</figcaption>
+</figure>
+
 <h3>6.2 Click prediction by soft membership</h3>
 <p>Suppose the event context is <em>Monday, 14:00, Sport</em> and the subscriber sits at weight 0.2 to cluster L1 and 0.8 to cluster L2 (weights derived from the stored distances). The model table gives campaign C1&rsquo;s historical rates in the matching context: 40 clicks per 8,000 impressions in L1 and 60 per 10,000 in L2. The prediction is the weighted blend:</p>
 <div class="formula">p(click | C1)  =  0.2 &middot; (40 / 8,000)  +  0.8 &middot; (60 / 10,000)  =  0.0058</div>
@@ -532,6 +608,40 @@ subject to  &Sigma;<sub>c</sub> x<sub>c,s</sub>  &le;  H<sub>s</sub>        (seg
 </table>
 </div>
 <div class="formula">performance index  =  actual / planned-by-now  =  7,100 / 7,640  &asymp;  93%</div>
+
+<figure>
+  <div class="figpanel">
+  <svg viewBox="0 0 720 280" role="img" aria-label="Planned versus actual cumulative delivery over a campaign flight">
+    <!-- axes -->
+    <line x1="80" y1="240" x2="690" y2="240" stroke="var(--fig-line)" stroke-width="1.5"/>
+    <line x1="80" y1="240" x2="80" y2="40" stroke="var(--fig-line)" stroke-width="1.5"/>
+    <g class="svgnum">
+      <text x="80" y="260" text-anchor="middle">0%</text>
+      <text x="380" y="260" text-anchor="middle">50%</text>
+      <text x="680" y="260" text-anchor="middle">100%</text>
+    </g>
+    <text x="385" y="278" text-anchor="middle" class="svglabel">FLIGHT ELAPSED</text>
+    <text x="30" y="140" text-anchor="middle" class="svglabel" transform="rotate(-90 30 140)">CUMULATIVE DELIVERY</text>
+    <!-- planned straight line -->
+    <line x1="80" y1="240" x2="680" y2="60" stroke="var(--teal)" stroke-width="2.5"/>
+    <!-- actual, drifting below then recovering -->
+    <polyline points="80,240 200,208 320,182 440,158 560,122 680,84" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+    <!-- 'now' marker at 60% -->
+    <line x1="440" y1="245" x2="440" y2="50" stroke="var(--rule)" stroke-dasharray="4 5"/>
+    <text x="440" y="42" text-anchor="middle" class="svglabel">NOW</text>
+    <circle cx="440" cy="132" r="4.5" fill="var(--teal)"/>
+    <circle cx="440" cy="158" r="4.5" fill="var(--accent)"/>
+    <line x1="452" y1="132" x2="452" y2="158" stroke="var(--ink-soft)" stroke-width="1.5"/>
+    <text x="462" y="150" class="svgnum">index &asymp; 93% &rarr; favor this campaign</text>
+    <!-- legend -->
+    <line x1="90" y1="60" x2="118" y2="60" stroke="var(--teal)" stroke-width="2.5"/>
+    <text x="126" y="64" class="svgnum">planned trajectory</text>
+    <line x1="90" y1="82" x2="118" y2="82" stroke="var(--accent)" stroke-width="2.5"/>
+    <text x="126" y="86" class="svgnum">actual delivery</text>
+  </svg>
+  </div>
+  <figcaption><span class="figno">Figure 4.</span> Pacing as trajectory tracking. The plan implies a cumulative delivery path; actual delivery drifts below it, the performance index measures the gap at the current moment, and the decision rule favors the lagging campaign on suitable impressions until the curves reconverge.</figcaption>
+</figure>
 <p>An index near 100% means the campaign is on plan. Far below a threshold, the campaign is critically underserved and jumps the queue (step&nbsp;6); far above, it is overserved and stands aside. Between the thresholds, campaigns compete on expected revenue:</p>
 <div class="tablewrap">
 <table>
@@ -561,6 +671,92 @@ subject to  &Sigma;<sub>c</sub> x<sub>c,s</sub>  &le;  H<sub>s</sub>        (seg
   </tbody>
 </table>
 </div>
+<figure>
+  <div class="figpanel">
+  <svg viewBox="0 0 720 320" role="img" aria-label="Per-replication revenue as a share of the clairvoyant bound, greedy versus planned">
+    <line x1="60" y1="252.3" x2="669" y2="252.3" stroke="var(--rule)" stroke-width="1"/>
+    <text x="54" y="256.3" text-anchor="end" class="svgnum">85%</text>
+    <line x1="60" y1="163.8" x2="669" y2="163.8" stroke="var(--rule)" stroke-width="1"/>
+    <text x="54" y="167.8" text-anchor="end" class="svgnum">90%</text>
+    <line x1="60" y1="75.4" x2="669" y2="75.4" stroke="var(--rule)" stroke-width="1"/>
+    <text x="54" y="79.4" text-anchor="end" class="svgnum">95%</text>
+    <line x1="70" y1="214.3" x2="70" y2="111.8" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="70" cy="214.3" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="70" cy="111.8" r="4.5" fill="var(--accent)"/>
+    <text x="70" y="290" text-anchor="middle" class="svgnum">1</text>
+    <line x1="101" y1="187.4" x2="101" y2="90.4" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="101" cy="187.4" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="101" cy="90.4" r="4.5" fill="var(--accent)"/>
+    <line x1="132" y1="179.4" x2="132" y2="72.0" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="132" cy="179.4" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="132" cy="72.0" r="4.5" fill="var(--accent)"/>
+    <line x1="163" y1="168.3" x2="163" y2="76.1" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="163" cy="168.3" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="163" cy="76.1" r="4.5" fill="var(--accent)"/>
+    <line x1="194" y1="178.9" x2="194" y2="86.0" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="194" cy="178.9" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="194" cy="86.0" r="4.5" fill="var(--accent)"/>
+    <text x="194" y="290" text-anchor="middle" class="svgnum">5</text>
+    <line x1="225" y1="234.4" x2="225" y2="120.5" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="225" cy="234.4" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="225" cy="120.5" r="4.5" fill="var(--accent)"/>
+    <line x1="256" y1="169.0" x2="256" y2="74.7" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="256" cy="169.0" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="256" cy="74.7" r="4.5" fill="var(--accent)"/>
+    <line x1="287" y1="245.1" x2="287" y2="111.8" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="287" cy="245.1" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="287" cy="111.8" r="4.5" fill="var(--accent)"/>
+    <line x1="318" y1="206.3" x2="318" y2="118.4" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="318" cy="206.3" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="318" cy="118.4" r="4.5" fill="var(--accent)"/>
+    <line x1="349" y1="135.7" x2="349" y2="69.0" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="349" cy="135.7" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="349" cy="69.0" r="4.5" fill="var(--accent)"/>
+    <text x="349" y="290" text-anchor="middle" class="svgnum">10</text>
+    <line x1="380" y1="143.9" x2="380" y2="70.8" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="380" cy="143.9" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="380" cy="70.8" r="4.5" fill="var(--accent)"/>
+    <line x1="411" y1="208.8" x2="411" y2="102.5" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="411" cy="208.8" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="411" cy="102.5" r="4.5" fill="var(--accent)"/>
+    <line x1="442" y1="221.5" x2="442" y2="109.5" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="442" cy="221.5" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="442" cy="109.5" r="4.5" fill="var(--accent)"/>
+    <line x1="473" y1="234.4" x2="473" y2="133.6" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="473" cy="234.4" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="473" cy="133.6" r="4.5" fill="var(--accent)"/>
+    <line x1="504" y1="244.9" x2="504" y2="128.6" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="504" cy="244.9" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="504" cy="128.6" r="4.5" fill="var(--accent)"/>
+    <text x="504" y="290" text-anchor="middle" class="svgnum">15</text>
+    <line x1="535" y1="191.6" x2="535" y2="99.8" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="535" cy="191.6" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="535" cy="99.8" r="4.5" fill="var(--accent)"/>
+    <line x1="566" y1="216.2" x2="566" y2="109.5" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="566" cy="216.2" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="566" cy="109.5" r="4.5" fill="var(--accent)"/>
+    <line x1="597" y1="182.4" x2="597" y2="78.6" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="597" cy="182.4" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="597" cy="78.6" r="4.5" fill="var(--accent)"/>
+    <line x1="628" y1="221.7" x2="628" y2="99.4" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="628" cy="221.7" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="628" cy="99.4" r="4.5" fill="var(--accent)"/>
+    <line x1="659" y1="161.4" x2="659" y2="62.5" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="659" cy="161.4" r="4.5" fill="var(--fig-line)"/>
+    <circle cx="659" cy="62.5" r="4.5" fill="var(--accent)"/>
+    <text x="659" y="290" text-anchor="middle" class="svgnum">20</text>
+    <!-- legend + labels -->
+    <circle cx="90" cy="32" r="4.5" fill="var(--accent)"/>
+    <text x="102" y="36" class="svgnum">planned</text>
+    <circle cx="180" cy="32" r="4.5" fill="var(--fig-line)"/>
+    <text x="192" y="36" class="svgnum">greedy</text>
+    <text x="365" y="314" text-anchor="middle" class="svglabel">REPLICATION</text>
+    <text x="26" y="160" text-anchor="middle" class="svglabel" transform="rotate(-90 26 160)">% OF CLAIRVOYANT BOUND</text>
+  </svg>
+  </div>
+  <figcaption><span class="figno">Figure 5.</span> Revenue captured by each policy as a share of the clairvoyant offline optimum, per replication. Planned allocation dominates greedy serving in all 20 replications; the two distributions do not overlap (planned minimum 91.7%, greedy maximum 91.6%).</figcaption>
+</figure>
+
 <p>Both policies fill every quota, so the entire gap is <em>pairing quality</em>: the same impressions, sold to the same campaigns, assigned to different audiences. This also explains why the click lift (33%) exceeds the revenue lift (6.5%): per-impression fees are earned identically by both policies once quotas fill, so planning&rsquo;s advantage is concentrated wholly in the click-priced component of revenue. In markets weighted further toward performance pricing, the revenue gap widens toward the click gap.</p>
 <p>The simulation carries its own controls. Both policies are verified against the clairvoyant bound in every replication. On degenerate instances where all campaigns share identical click probabilities, so pairing cannot matter, the measured lift is 0.000%, confirming that the gap measures allocation quality and not an artifact of the harness. And the planned policy&rsquo;s 93.8% of a bound computed with perfect hindsight shows that forecast noise costs the plan only a few points, the residual that Section&nbsp;6&rsquo;s pacing mechanism and the refinement loop exist to absorb.</p>
 
