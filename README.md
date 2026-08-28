@@ -20,7 +20,7 @@ pip install numpy scipy
 python alloc_sim.py
 ```
 
-Twenty replications of a synthetic market (60 audience segments, 25 campaigns, ~200,000 impressions per run). The planned policy achieves a mean 6.5% revenue lift and 33% expected-click lift over greedy serving on identical event streams, capturing 94% of the clairvoyant offline optimum. The harness verifies both policies against the clairvoyant bound in every replication and includes a degenerate uniform-probability control whose measured lift is zero.
+Twenty replications of a synthetic market (60 audience segments, 25 campaigns, ~200,000 impressions per run). The planned policy achieves a mean 6.5% revenue lift and 33% expected-click lift over greedy serving on identical event streams, capturing 94% of the hindsight offline optimum. The harness verifies both policies against the hindsight bound in every replication and includes a uniform-probability control whose measured lift is zero.
 
 ## Real-log replay (Section 8)
 
