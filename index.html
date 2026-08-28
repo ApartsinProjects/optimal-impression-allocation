@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimal Impression Allocation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --paper: #FFFFFF;
+    --panel: #FDFDFD;
+    --panel-edge: #DDE3E9;
+    --ink: #1C2733;
+    --ink-soft: #45535F;
+    --muted: #5B6B7A;
+    --accent: #C87A1E;
+    --accent-soft: #F3E4CE;
+    --teal: #2E7D74;
+    --teal-soft: #DCEBE9;
+    --rule: #C9D2DA;
+    --table-head: #EDF0F3;
+    --fig-line: #8A99A8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-size: 1.05rem;
+    line-height: 1.65;
+  }
+  .page {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 5rem;
+  }
+
+  header.masthead { border-bottom: 3px double var(--rule); padding-bottom: 2rem; margin-bottom: 2.5rem; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .78rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .9rem;
+  }
+  h1 {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(2.1rem, 5.5vw, 3rem);
+    line-height: 1.12;
+    margin: 0 0 1rem;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-family: "Newsreader", Georgia, serif;
+    font-size: 1.22rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 40rem;
+  }
+
+  h2 {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 600;
+    font-size: 1.65rem;
+    line-height: 1.2;
+    margin: 3rem 0 1rem;
+    text-wrap: balance;
+  }
+  h2 .secno {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 500;
+    font-size: 1rem;
+    color: var(--accent);
+    margin-right: .6rem;
+  }
+  h3 {
+    font-family: "Source Sans 3", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 1.08rem;
+    letter-spacing: .01em;
+    margin: 2rem 0 .6rem;
+  }
+  p { margin: 0 0 1rem; text-align: justify; hyphens: auto; }
+  figcaption, .eyebrow, footer.colophon { text-align: left; hyphens: none; }
+  .steps li, li { text-align: justify; hyphens: auto; }
+
+  .abstract {
+    border: 1px solid var(--panel-edge);
+    border-top: 3px solid var(--accent);
+    background: var(--panel);
+    border-radius: 4px;
+    padding: 1.2rem 1.5rem 1rem;
+    margin: 0 0 1rem;
+  }
+  .abstract h2 {
+    margin: 0 0 .6rem;
+    font-size: 1.15rem;
+    font-family: "Source Sans 3", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .abstract p { font-size: .98rem; margin-bottom: .6rem; }
+  strong { font-weight: 700; }
+  ul, ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+  li { margin-bottom: .35rem; }
+
+  .formula {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .92rem;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-left: 3px solid var(--teal);
+    border-radius: 4px;
+    padding: .8rem 1.1rem;
+    margin: 1.1rem 0 1.3rem;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.8;
+    color: var(--ink);
+  }
+
+  .callout {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: .9rem 1.2rem;
+    margin: 1.4rem 0;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  figure { margin: 1.8rem 0 2rem; }
+  .figpanel {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 6px;
+    padding: 1.2rem 1rem .8rem;
+    overflow-x: auto;
+  }
+  figcaption {
+    font-size: .88rem;
+    color: var(--muted);
+    margin-top: .7rem;
+    line-height: 1.5;
+  }
+  figcaption .figno {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    color: var(--accent);
+    font-weight: 600;
+    margin-right: .4rem;
+  }
+  svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  svg text { font-family: "Source Sans 3", system-ui, sans-serif; fill: var(--ink); }
+  svg .svglabel { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; fill: var(--muted); letter-spacing: .08em; }
+  svg .svgnum { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; fill: var(--ink-soft); }
+  svg .svgtitle { font-weight: 700; font-size: 13.5px; }
+
+  .tablewrap { overflow-x: auto; margin: 1.2rem 0 1.5rem; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: .93rem;
+    font-variant-numeric: tabular-nums;
+  }
+  th {
+    background: var(--table-head);
+    text-align: left;
+    font-weight: 700;
+    font-size: .85rem;
+    letter-spacing: .03em;
+    padding: .5rem .7rem;
+    border: 1px solid var(--panel-edge);
+  }
+  td {
+    padding: .45rem .7rem;
+    border: 1px solid var(--panel-edge);
+    background: var(--panel);
+  }
+  td.mono, th.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .85rem; }
+  td.num { text-align: right; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .85rem; }
+
+  .steps { counter-reset: step; list-style: none; padding-left: 0; margin: 1.3rem 0 1.5rem; }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: .75rem 1rem .75rem 3.1rem;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 5px;
+    margin-bottom: .55rem;
+  }
+  .steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: .9rem;
+    top: .85rem;
+    width: 1.55rem;
+    height: 1.55rem;
+    border-radius: 50%;
+    background: var(--teal-soft);
+    color: var(--teal);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600;
+    font-size: .85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .steps b { display: block; margin-bottom: .15rem; }
+  .steps .uses {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .76rem;
+    color: var(--teal);
+    letter-spacing: .04em;
+  }
+
+  footer.colophon {
+    margin-top: 3.5rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--rule);
+    font-size: .85rem;
+    color: var(--muted);
+  }
+  a { color: var(--teal); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  .pdf-badge {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #FFFFFF;
+    background: var(--accent);
+    border-radius: 999px;
+    padding: .42rem .95rem;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(28, 39, 51, .18);
+  }
+  .pdf-badge:hover { background: var(--teal); }
+  .pdf-badge:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  @media print { .pdf-badge { display: none; } }
+</style>
+
+<a class="pdf-badge" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper.pdf" download>&#8595; PDF</a>
+
+<div class="page">
+
+<header class="masthead">
+  <p class="eyebrow">Technical Report</p>
+  <h1>Optimal Impression Allocation</h1>
+  <p class="standfirst">How a mobile advertising platform decides, in real time, which campaign each subscriber sees, and why planning those decisions globally, rather than greedily, is where the revenue is.</p>
+</header>
+
+<section class="abstract">
+  <h2>Abstract</h2>
+  <p>Serving each ad impression to the campaign the viewer is most likely to click maximizes nothing: campaigns carry contracted impression quotas, and every impression granted to one campaign is denied to all others. This report presents a two-stage architecture that treats ad serving as a global allocation problem, set in the environment best equipped to solve it: a mobile network operator, whose verified subscriber profiles, complete gateway-observed browsing histories, and single stable identity per subscriber support finer audience segmentation and census-grade traffic forecasts than any publisher-side system. An offline stage clusters subscribers by profile and response behavior, estimates click probabilities per campaign and audience segment, forecasts traffic, and solves a transportation-style linear program that allocates every campaign's quota across segments for maximum expected revenue. The resulting plan is compiled into bit-masked lookup tables that an online stage executes per impression in constant time, blending cluster-level click rates through soft membership weights and steering delivery back to the planned trajectory with a pacing index. On a minimal worked instance, planned allocation raises expected clicks 11% over greedy serving with identical inputs. In Monte-Carlo simulation at realistic scale (25 campaigns, 60 segments, 200,000 impressions per run, 20 replications), the planned policy delivers a mean 6.5% revenue lift and 33% more expected clicks than greedy serving on identical event streams, and captures 94% of the clairvoyant offline optimum despite serving against forecast rather than realized traffic. Served responses feed the next planning cycle, closing the loop.</p>
+</section>
+
+<h2><span class="secno">1</span>Summary</h2>
+<p>A mobile advertising platform must answer one question millions of times a day: <em>a subscriber has just opened a page; which campaign should fill this impression?</em> The obvious answer, show whichever ad this subscriber is most likely to click, is wrong. Campaigns carry contracted impression quotas, subscribers arrive in an unpredictable order, and every impression given to one campaign is an impression denied to all others. Serving each event myopically fills popular campaigns with the first users who arrive, not the users who respond best, and leaves the remaining campaigns with a poorly matched audience.</p>
+<p>This report describes an architecture that treats ad serving as a <strong>global allocation problem</strong>. An offline analytics stage learns who responds to what, clusters subscribers by profile and response behavior, predicts traffic per audience segment, and solves for an allocation plan that maximizes expected revenue across all campaigns at once. The plan is compiled into compact lookup tables. An online decision stage then serves each impression in constant time by consulting those tables, tracking actual delivery against plan, and steering each campaign back toward its planned trajectory. Feedback from served impressions flows back to analytics, closing the loop and refining the model each cycle.</p>
+
+<h2><span class="secno">2</span>The operator&rsquo;s vantage point</h2>
+<p>Mobile advertising delivered by the network operator itself is a different discipline from advertising on the open web, and the difference is the data. A web ad network observes a browser: an unverified, resettable cookie, activity on the sites it happens to instrument, and demographics inferred by guesswork. A network operator observes a <em>customer</em>. The subscriber relationship supplies a verified identity anchored in a billing account, declared attributes such as age, gender, and home address, and financial signals such as plan type, spending level, and purchase history for content like music and ringtones. The network itself supplies what no publisher-side system can assemble: every browsing session crosses the operator&rsquo;s gateway regardless of destination site, so the response history is complete rather than sampled from one publisher&rsquo;s corner of the web, and it is joined under one stable identifier rather than stitched probabilistically across cookies and devices.</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Dimension</th><th>Web ad network</th><th>Network operator</th></tr></thead>
+  <tbody>
+    <tr><td>Identity</td><td>Cookie or device fingerprint; resettable, unverified</td><td>Subscriber account; stable, verified, one per person</td></tr>
+    <tr><td>Demographics</td><td>Inferred from behavior</td><td>Declared at subscription: age, gender, address</td></tr>
+    <tr><td>Financial signal</td><td>None or modeled</td><td>Plan, spend level, content purchase history</td></tr>
+    <tr><td>Location</td><td>Coarse, via IP</td><td>Network-observed, continuous</td></tr>
+    <tr><td>Browsing coverage</td><td>Sites the network instruments</td><td>All traffic through the gateway</td></tr>
+    <tr><td>Exposure control</td><td>Per-site frequency caps</td><td>Global caps across all inventory, per subscriber</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>This vantage point changes what is <em>possible</em>, and each advantage maps directly onto a component of the architecture in this report. Verified profiles and complete response histories make the proximity metric of Section&nbsp;5.2 meaningful: subscribers are clustered on real attributes and full behavioral records, not on noisy proxies, so the clusters are stable enough to pool click statistics over. Complete traffic visibility makes the context slots and traffic forecasts of Section&nbsp;5.3 accurate: the operator sees the whole denominator, every impression opportunity, not just the ones flowing through partnered sites. The single stable identifier makes global exposure policy enforceable: a frequency cap means the subscriber saw at most so many ads today <em>anywhere</em>, which no cookie-scoped system can promise. And the billing relationship closes the loop commercially, since the same account that receives the ad can redeem the offer.</p>
+<p>Two consequences deserve emphasis, because the allocation machinery depends on them quantitatively. First, <strong>segmentation can be far finer</strong>. Cluster granularity is limited by statistics: a segment must generate enough impressions and clicks for its estimated rates to be trustworthy. Because the operator&rsquo;s data is complete (every subscriber, every session) and clean (verified attributes, deduplicated identity), the same statistical reliability is reached with much smaller segments than inferred web data allows. Finer segments mean click probabilities that track real behavioral differences instead of averaging over them, and every refinement of <em>p<sub>c,s</sub></em> translates directly into allocation-plan revenue. Second, <strong>overall load is predictable</strong>. The operator observes total traffic, its daily and weekly rhythm, per content category and per region, so the supply forecast <em>H<sub>s</sub></em> is estimated from a census rather than a sample. Accurate supply forecasts are what make an offline plan trustworthy at all: a plan allocating impressions that never materialize, or missing volume that does, must be repaired constantly at serving time. Rich subscriber knowledge sharpens both sides of the optimization, the value of each pairing and the volume available to pair.</p>
+<p>The vantage point also carries obligations that shape the design. Not every subscriber has a profile: prepaid users may be anonymous, which is why the clustering machinery supports membership computed from response behavior alone (Section&nbsp;5.3). And precisely because the data is rich, personal attributes never leave the offline stage in raw form; what reaches the serving path is a set of anonymous cluster distances and campaign eligibility lists, not the profile itself.</p>
+<p>Rich knowledge, however, only determines how well each individual impression <em>could</em> perform. It says nothing about how impressions should be divided among competing campaigns. That is a separate problem, and it is where the revenue argument begins.</p>
+
+<h2><span class="secno">3</span>Motivation: the cost of deciding one impression at a time</h2>
+<p>Consider the smallest interesting instance. Two campaigns run at the same time: a soft drink and a sports car. Each has bought exactly <strong>two impressions</strong>. Four subscribers will each generate one ad opportunity. From past behavior we can estimate every subscriber&rsquo;s probability of clicking each campaign:</p>
+
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>Subscriber</th><th>P(click | drink)</th><th>P(click | car)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>u&#8321;</td><td class="num">0.10</td><td class="num">0.80</td></tr>
+    <tr><td>u&#8322;</td><td class="num">0.30</td><td class="num">0.50</td></tr>
+    <tr><td>u&#8323;</td><td class="num">0.20</td><td class="num">0.60</td></tr>
+    <tr><td>u&#8324;</td><td class="num">0.40</td><td class="num">0.70</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>A greedy server shows every subscriber their personally best ad. All four prefer the car, so the car campaign&rsquo;s quota is consumed by whoever happens to arrive first, say u&#8321; and u&#8322;. The drink campaign is then forced onto the remaining two:</p>
+
+<figure>
+  <div class="figpanel">
+  <svg viewBox="0 0 720 300" role="img" aria-label="Greedy versus optimal assignment of two campaigns to four subscribers">
+    <!-- Greedy side -->
+    <text x="170" y="26" text-anchor="middle" class="svgtitle">Greedy (arrival order)</text>
+    <text x="170" y="44" text-anchor="middle" class="svgnum">expected clicks = 1.90</text>
+    <!-- campaigns -->
+    <text x="50" y="110" text-anchor="middle" class="svglabel">CAR</text>
+    <text x="50" y="210" text-anchor="middle" class="svglabel">DRINK</text>
+    <circle cx="50" cy="122" r="5" fill="var(--teal)"/>
+    <circle cx="50" cy="222" r="5" fill="var(--accent)"/>
+    <!-- users -->
+    <g class="svgnum">
+      <text x="300" y="84">u&#8321;</text>
+      <text x="300" y="144">u&#8322;</text>
+      <text x="300" y="204">u&#8323;</text>
+      <text x="300" y="264">u&#8324;</text>
+    </g>
+    <line x1="60" y1="122" x2="292" y2="80"  stroke="var(--teal)" stroke-width="3"/>
+    <line x1="60" y1="122" x2="292" y2="140" stroke="var(--teal)" stroke-width="3"/>
+    <line x1="60" y1="222" x2="292" y2="200" stroke="var(--accent)" stroke-width="3"/>
+    <line x1="60" y1="222" x2="292" y2="260" stroke="var(--accent)" stroke-width="3"/>
+    <g class="svgnum">
+      <text x="168" y="92">.80</text>
+      <text x="168" y="142">.50</text>
+      <text x="168" y="202">.20</text>
+      <text x="168" y="252">.40</text>
+    </g>
+    <!-- divider -->
+    <line x1="360" y1="20" x2="360" y2="280" stroke="var(--rule)" stroke-dasharray="4 5"/>
+    <!-- Optimal side -->
+    <text x="530" y="26" text-anchor="middle" class="svgtitle">Optimal (planned)</text>
+    <text x="530" y="44" text-anchor="middle" class="svgnum">expected clicks = 2.10</text>
+    <text x="410" y="110" text-anchor="middle" class="svglabel">CAR</text>
+    <text x="410" y="210" text-anchor="middle" class="svglabel">DRINK</text>
+    <circle cx="410" cy="122" r="5" fill="var(--teal)"/>
+    <circle cx="410" cy="222" r="5" fill="var(--accent)"/>
+    <g class="svgnum">
+      <text x="660" y="84">u&#8321;</text>
+      <text x="660" y="144">u&#8322;</text>
+      <text x="660" y="204">u&#8323;</text>
+      <text x="660" y="264">u&#8324;</text>
+    </g>
+    <line x1="420" y1="122" x2="652" y2="80"  stroke="var(--teal)" stroke-width="3"/>
+    <line x1="420" y1="122" x2="652" y2="200" stroke="var(--teal)" stroke-width="3"/>
+    <line x1="420" y1="222" x2="652" y2="140" stroke="var(--accent)" stroke-width="3"/>
+    <line x1="420" y1="222" x2="652" y2="260" stroke="var(--accent)" stroke-width="3"/>
+    <g class="svgnum">
+      <text x="528" y="92">.80</text>
+      <text x="528" y="168">.60</text>
+      <text x="522" y="196">.30</text>
+      <text x="528" y="252">.40</text>
+    </g>
+  </svg>
+  </div>
+  <figcaption><span class="figno">Figure 1.</span> Two campaigns, four subscribers, two impressions per campaign. Greedy serving fills the car campaign with the first arrivals (u&#8321;, u&#8322;) for 0.80&nbsp;+&nbsp;0.50&nbsp;+&nbsp;0.20&nbsp;+&nbsp;0.40&nbsp;=&nbsp;1.90 expected clicks. The optimal assignment gives the car campaign u&#8321; and u&#8323; and the drink campaign u&#8322; and u&#8324;, for 0.80&nbsp;+&nbsp;0.60&nbsp;+&nbsp;0.30&nbsp;+&nbsp;0.40&nbsp;=&nbsp;2.10, an 11% lift from re-pairing the same impressions.</figcaption>
+</figure>
+
+<p>Nothing about the subscribers or the campaigns changed between the two panels. The only difference is that the right-hand assignment was chosen <em>jointly</em>: the car campaign gives up u&#8322; (a 0.50 click chance) to free that subscriber for the drink campaign (where they are the drink&rsquo;s best audience at 0.30), and takes u&#8323; (0.60) instead. Each individual swap looks locally worse for someone; the total is strictly better.</p>
+<p>The gap grows with scale. With hundreds of campaigns, millions of subscribers, targeting constraints, frequency caps, and time-of-day windows, greedy serving does not just lose a few percent, it systematically starves narrow-audience campaigns, over-exposes indifferent users, and leaves contracted quotas unfilled at the end of the flight. Optimal allocation is not a refinement of ad serving; it is the difference between selling inventory and wasting it.</p>
+
+<div class="callout">
+  <p><strong>The core insight:</strong> click probability is a property of a <em>pair</em> (audience, campaign), not of a campaign alone. Revenue is maximized by choosing the pairing globally, subject to each campaign&rsquo;s quota, and this choice can be made ahead of time because audience behavior is statistically predictable even though individual events are not.</p>
+</div>
+
+<h2><span class="secno">4</span>Problem formulation</h2>
+<p>Formally, the planning stage solves a transportation-style optimization. Audience supply is described by segments: <em>s</em> ranges over (cluster, context slot) pairs, where a cluster is a group of behaviorally similar subscribers and a context slot is a recurring situation (a time window crossed with a content category). Let <em>H<sub>s</sub></em> be the predicted number of impressions segment <em>s</em> will generate during the planning horizon, and <em>p<sub>c,s</sub></em> the estimated probability that an impression from segment <em>s</em> produces a click on campaign <em>c</em>. Each campaign pays <em>r<sub>c</sub></em> per impression and <em>q<sub>c</sub></em> per click, and has bought <em>Q<sub>c</sub></em> impressions. The plan chooses <em>x<sub>c,s</sub></em>, the number of impressions of campaign <em>c</em> allocated to segment <em>s</em>:</p>
+
+<div class="formula">maximize    &Sigma;<sub>c,s</sub>  x<sub>c,s</sub> &middot; ( r<sub>c</sub> + q<sub>c</sub> &middot; p<sub>c,s</sub> )
+
+subject to  &Sigma;<sub>c</sub> x<sub>c,s</sub>  &le;  H<sub>s</sub>        (segment supply)
+            &Sigma;<sub>s</sub> x<sub>c,s</sub>  =  Q<sub>c</sub>        (campaign quota)
+            x<sub>c,s</sub> = 0 where targeting excludes (c, s)
+            x<sub>c,s</sub>  &ge;  0</div>
+
+<p>Figure&nbsp;1 is this program with two campaigns, four singleton segments, <em>H<sub>s</sub></em>&nbsp;=&nbsp;1 and <em>Q<sub>c</sub></em>&nbsp;=&nbsp;2. At production scale the same structure holds; the segments are just coarser and the counts larger. Because both objective and constraints are linear, the plan is solvable with standard methods even for large instances, and, critically, it is solved <strong>offline</strong>. The online server never optimizes; it executes a pre-computed plan and corrects for drift.</p>
+<p>Two practical notes. First, the objective prices impressions and clicks separately, so campaigns that pay mostly per impression and campaigns that pay mostly per click compete in one currency, expected revenue. Second, the quota constraint is what makes greedy serving inadequate: without it, per-event argmax would be optimal, and no planning stage would be needed.</p>
+
+<h2><span class="secno">5</span>The offline stage: learning the inputs to the plan</h2>
+<p>The allocation program needs two inputs that do not exist in raw data: predicted traffic per segment (<em>H<sub>s</sub></em>) and click probabilities per campaign-segment pair (<em>p<sub>c,s</sub></em>). The offline analytics stage manufactures both from event history, under three modeling assumptions, each holding with high probability rather than certainty:</p>
+<ol>
+  <li>The distribution of (context, profile) pairs observed in the past will recur in the future.</li>
+  <li>Users who responded similarly under similar conditions will continue to respond similarly.</li>
+  <li>Users who respond similarly share something observable in their profiles or histories.</li>
+</ol>
+<p>Assumption 1 justifies forecasting traffic from history; assumptions 2 and 3 justify pooling sparse per-user click data into clusters that have enough volume to estimate probabilities reliably.</p>
+
+<h3>5.1 Response records</h3>
+<p>The atomic unit of evidence is an ad response record: who saw what, in what context, and whether they clicked.</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Time of day</th><th>Day of week</th><th>Content category</th><th>Campaign</th><th>Click</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">11:23</td><td>Monday</td><td>News</td><td class="mono">C1 (active)</td><td class="num">0</td></tr>
+    <tr><td class="mono">14:15</td><td>Monday</td><td>Sport</td><td class="mono">C2 (active)</td><td class="num">1</td></tr>
+    <tr><td class="mono">18:14</td><td>Sunday</td><td>Sport</td><td class="mono">C4 (past)</td><td class="num">1</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Records are grouped per subscriber and joined with the profile (age, gender, location, income band, purchase indicators) where one is available. Past campaigns matter as much as active ones: a subscriber&rsquo;s reaction to a finished campaign is evidence about how they will react to similar future ones.</p>
+
+<h3>5.2 Proximity and clustering</h3>
+<p>Subscribers are clustered by a weighted distance that mixes profile similarity with response-pattern similarity, response to the same campaigns (active and past) and response to similar campaigns. Each attribute contributes its own distance component:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Attribute</th><th>Distance component</th></tr></thead>
+  <tbody>
+    <tr><td>Age</td><td>Absolute difference</td></tr>
+    <tr><td>Gender</td><td>Fixed penalty if different</td></tr>
+    <tr><td>Campaign affinity</td><td>By campaign category; fixed penalty if different</td></tr>
+    <tr><td>Day of week</td><td>Absolute difference, circular</td></tr>
+    <tr><td>Location (x,&nbsp;y)</td><td>Straight-line distance</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Membership is deliberately <strong>soft</strong>. A subscriber is not filed into one cluster; they carry a pre-computed distance to each nearby cluster. A 35-year-old married music buyer in a large city may sit at distance 0.8 from the &ldquo;metropolitan professionals&rdquo; cluster and 0.1 from &ldquo;music lovers&rdquo;; a teenage ringtone buyer in the same city sits close to &ldquo;kids&rdquo; and &ldquo;music lovers&rdquo; instead. These distances become interpolation weights at serving time (Section&nbsp;6), so predictions blend the behavior of every cluster the subscriber resembles.</p>
+
+<h3>5.3 Cluster representation and click estimation</h3>
+<p>Each cluster is summarized by two compact structures. Its <em>context slots</em> describe when and where the cluster generates traffic, with predicted hit counts, this is the supply side <em>H<sub>s</sub></em>. Its <em>click statistics</em> record impressions and clicks per campaign per context slot, the raw material for <em>p<sub>c,s</sub></em>:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Context slot</th><th>Time of day</th><th>Day of week</th><th>Category</th><th>Predicted hits</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">CS1</td><td class="mono">10:00&ndash;12:00</td><td>Mon&ndash;Tue</td><td>News, Sport</td><td class="num">3,000</td></tr>
+    <tr><td class="mono">CS2</td><td class="mono">11:00&ndash;17:00</td><td>Sun</td><td>Sport</td><td class="num">4,000</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Campaign</th><th>Context slot</th><th>Impressions</th><th>Clicks</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">C1</td><td class="mono">CS1</td><td class="num">1,000</td><td class="num">3</td></tr>
+    <tr><td class="mono">C1</td><td class="mono">CS2</td><td class="num">2,000</td><td class="num">2</td></tr>
+    <tr><td class="mono">C2</td><td class="mono">CS1</td><td class="num">1,000</td><td class="num">7</td></tr>
+  </tbody>
+</table>
+</div>
+<p>For a brand-new campaign with no history of its own, probabilities are borrowed from the most similar past or active campaigns in the same category, the same pooling idea applied across campaigns instead of across users. Where the profile itself is missing (anonymous or prepaid subscribers), distance to clusters is computed from response history alone, and the subscriber inherits the response statistics of the cluster they behave like. The design degrades gracefully as data thins out: per-user evidence backs off to cluster evidence, and per-campaign evidence backs off to category evidence.</p>
+
+<h3>5.4 Compiling the plan into lookup tables</h3>
+<p>Solving the allocation program yields planned impression counts per (campaign, cluster, context slot). Everything the online server needs is then flattened into three lookup structures, so that no clustering, no distance computation, and no optimization happens on the serving path:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Structure</th><th>Keyed by</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Model table</strong></td><td class="mono">cluster &times; campaign</td><td>Targeted time slots and content categories as bit masks; planned impressions; expected clicks</td></tr>
+    <tr><td><strong>Match table</strong></td><td class="mono">subscriber</td><td>Campaigns this subscriber is eligible for under targeting rules</td></tr>
+    <tr><td><strong>Cluster table</strong></td><td class="mono">subscriber</td><td>Distance to each nearby cluster (the soft-membership weights)</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Time and content targeting are encoded as fixed-width bit masks, 168 weekly hour-slots and up to 256 content categories, so an eligibility test at serving time is a bitwise AND rather than a rule evaluation. A model table row reads, in full: <em>&ldquo;cluster L1, campaign C1, time mask 0100&#8230;, content mask 1111&#8230;, 10,000 planned impressions, 450 expected clicks.&rdquo;</em> That one row carries targeting, allocation, and the performance baseline the online stage will pace against.</p>
+
+<h2><span class="secno">6</span>The online stage: executing the plan in real time</h2>
+<p>At serving time an impression event arrives carrying a subscriber identifier and a context (time, day, content category of the page being viewed). The decision engine must return a single campaign within the latency budget of a page load. It consults the three model structures plus two live state tables: a <strong>status table</strong> mirroring the model table but accumulating <em>actual</em> impressions and clicks, and a <strong>response table</strong> holding each subscriber&rsquo;s recent exposure records.</p>
+
+<figure>
+  <div class="figpanel">
+  <svg viewBox="0 0 720 240" role="img" aria-label="Closed loop between offline planning and online serving">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line)"/>
+      </marker>
+      <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+      </marker>
+    </defs>
+    <!-- offline box -->
+    <rect x="40" y="60" width="220" height="120" rx="8" fill="none" stroke="var(--teal)" stroke-width="2"/>
+    <text x="150" y="98" text-anchor="middle" class="svgtitle">Offline analytics</text>
+    <text x="150" y="122" text-anchor="middle" class="svgnum">cluster &middot; predict &middot; plan</text>
+    <text x="150" y="142" text-anchor="middle" class="svgnum">(periodic refinement)</text>
+    <!-- online box -->
+    <rect x="460" y="60" width="220" height="120" rx="8" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    <text x="570" y="98" text-anchor="middle" class="svgtitle">Online decision</text>
+    <text x="570" y="122" text-anchor="middle" class="svgnum">per impression, real time</text>
+    <text x="570" y="142" text-anchor="middle" class="svgnum">(lookup + pacing)</text>
+    <!-- forward arrow -->
+    <line x1="260" y1="95" x2="452" y2="95" stroke="var(--fig-line)" stroke-width="2" marker-end="url(#arr)"/>
+    <text x="356" y="84" text-anchor="middle" class="svglabel">MODEL + PLAN (TABLES)</text>
+    <!-- feedback arrow -->
+    <line x1="460" y1="150" x2="268" y2="150" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrA)"/>
+    <text x="364" y="172" text-anchor="middle" class="svglabel">RESPONSE FEEDBACK</text>
+  </svg>
+  </div>
+  <figcaption><span class="figno">Figure 2.</span> The closed loop. Offline analytics compiles the model and allocation plan into lookup tables; the online engine executes them per impression and streams response records back, which the next analytics cycle uses to refine clusters, probabilities, and the plan.</figcaption>
+</figure>
+
+<h3>6.1 The seven-step decision</h3>
+<ol class="steps">
+  <li><b>Find eligible campaigns</b><span class="uses">match table</span> Look up the campaigns this subscriber may be shown under targeting rules.</li>
+  <li><b>Apply exposure policy</b><span class="uses">response table</span> Drop campaigns that would violate frequency rules for this subscriber, a minimum interval between exposures, a maximum number of exposures per day.</li>
+  <li><b>Fetch cluster distances</b><span class="uses">cluster table</span> Retrieve the subscriber&rsquo;s pre-computed distances to nearby clusters.</li>
+  <li><b>Predict click probability per candidate</b><span class="uses">model table</span> Blend cluster-level click rates with the soft-membership weights (Section&nbsp;6.2).</li>
+  <li><b>Compute pacing per candidate</b><span class="uses">status table</span> Compare actual delivery against plan, prorated to this point in the flight (Section&nbsp;6.3).</li>
+  <li><b>Decide</b> If any campaign is critically underserved, serve it. Otherwise drop overserved campaigns and serve the candidate with the greatest expected revenue.</li>
+  <li><b>Update state</b><span class="uses">status + response tables</span> Increment the served campaign&rsquo;s actual counters and append the exposure record, which later feeds back to analytics.</li>
+</ol>
+<p>Every step is a keyed lookup, a bit-mask test, or arithmetic over a handful of rows. The expensive work, clustering, probability estimation, optimization, was all paid for offline.</p>
+
+<h3>6.2 Click prediction by soft membership</h3>
+<p>Suppose the event context is <em>Monday, 14:00, Sport</em> and the subscriber sits at weight 0.2 to cluster L1 and 0.8 to cluster L2 (weights derived from the stored distances). The model table gives campaign C1&rsquo;s historical rates in the matching context: 40 clicks per 8,000 impressions in L1 and 60 per 10,000 in L2. The prediction is the weighted blend:</p>
+<div class="formula">p(click | C1)  =  0.2 &middot; (40 / 8,000)  +  0.8 &middot; (60 / 10,000)  =  0.0058</div>
+<p>Because the subscriber borrows from every cluster they resemble, the estimate is stable even for users with thin personal histories, and it is computed from two table rows and four multiplications.</p>
+
+<h3>6.3 Pacing: planned versus actual</h3>
+<p>The plan is a trajectory, not just a total. If a campaign is one third of the way through its flight in a given cluster, it should have received roughly one third of its planned impressions there. The engine aggregates this across the clusters where the campaign runs:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Cluster</th><th>Flight elapsed</th><th>Planned by now</th><th>Actual</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">L1</td><td class="num">33%</td><td class="num">8,000 &times; 0.33 = 2,640</td><td class="num">2,000</td></tr>
+    <tr><td class="mono">L2</td><td class="num">50%</td><td class="num">10,000 &times; 0.50 = 5,000</td><td class="num">5,100</td></tr>
+    <tr><td><strong>Total</strong></td><td></td><td class="num"><strong>7,640</strong></td><td class="num"><strong>7,100</strong></td></tr>
+  </tbody>
+</table>
+</div>
+<div class="formula">performance index  =  actual / planned-by-now  =  7,100 / 7,640  &asymp;  93%</div>
+<p>An index near 100% means the campaign is on plan. Far below a threshold, the campaign is critically underserved and jumps the queue (step&nbsp;6); far above, it is overserved and stands aside. Between the thresholds, campaigns compete on expected revenue:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Campaign</th><th>Click price</th><th>Impression price</th><th>Perf. index</th><th>P(click)</th><th>Expected revenue</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">C1</td><td class="num">$0.05</td><td class="num">$0.10</td><td class="num">55%</td><td class="num">0.01</td><td class="num">$0.0501</td></tr>
+    <tr><td class="mono">C2</td><td class="num">$0.04</td><td class="num">$0.30</td><td class="num">91%</td><td class="num">0.03</td><td class="num">$0.0403</td></tr>
+    <tr><td class="mono">C3</td><td class="num">$0.06</td><td class="num">$0.20</td><td class="num">96%</td><td class="num">0.02</td><td class="num">$0.0604</td></tr>
+    <tr><td class="mono">C4</td><td class="num">$0.05</td><td class="num">$0.10</td><td class="num">105%</td><td class="num">0.07</td><td class="num">$0.0507</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Here no campaign is critically underserved and none has crossed the overserved threshold, so the engine serves C3, the greatest expected revenue for this impression. The pacing mechanism is what lets a static offline plan survive contact with stochastic reality: the plan sets the destination, and the index steers thousands of small per-impression corrections toward it. Deviations that pacing cannot absorb, a traffic forecast that proves wrong, a campaign that outperforms its category prior, are exactly what the feedback loop carries back into the next planning cycle.</p>
+
+<h2><span class="secno">7</span>Simulation: planned allocation versus greedy serving</h2>
+<p>The four-subscriber example of Section&nbsp;3 proves the mechanism exists; a Monte-Carlo simulation quantifies it at realistic scale. Each replication generates a synthetic market: 60 audience segments with lognormal traffic (about 200,000 impression opportunities), 25 campaigns whose quotas sell 80% of expected inventory, per-impression and per-click prices drawn independently, and click probabilities from a low-rank affinity model (each campaign genuinely fits some audiences better than others, with rates spanning 0.1%&ndash;8%). Each campaign is eligible, by targeting, on roughly 60% of segments.</p>
+<p>Two policies then serve the <em>identical</em> event stream under identical quotas, prices, probabilities, and targeting. The <strong>greedy</strong> policy is the conventional per-event rule: serve the eligible, quota-remaining campaign with the highest immediate expected revenue. The <strong>planned</strong> policy solves the linear program of Section&nbsp;4 offline on the traffic forecast, then serves each event by drawing down the planned allocation, falling back to greedy where the plan is locally exhausted. The plan never sees the realized traffic; events are drawn stochastically around the forecast, so the planned policy faces genuine forecast error. A third quantity, the <strong>clairvoyant bound</strong>, is the offline optimum computed on the traffic that actually occurred; no online policy can exceed it.</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Measure (20 replications)</th><th>Mean</th><th>Range</th></tr></thead>
+  <tbody>
+    <tr><td>Revenue lift, planned over greedy</td><td class="num">+6.5%</td><td class="num">+4.1% to +8.8%</td></tr>
+    <tr><td>Expected-click lift, planned over greedy</td><td class="num">+33.0%</td><td class="num">+22.9% to +40.6%</td></tr>
+    <tr><td>Planned revenue as share of clairvoyant bound</td><td class="num">93.8%</td><td class="num">&ge; 91.7%</td></tr>
+    <tr><td>Greedy revenue as share of clairvoyant bound</td><td class="num">88.1%</td><td class="num">&ge; 85.4%</td></tr>
+    <tr><td>Quota fill, both policies</td><td class="num">100%</td><td class="num">&mdash;</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Both policies fill every quota, so the entire gap is <em>pairing quality</em>: the same impressions, sold to the same campaigns, assigned to different audiences. This also explains why the click lift (33%) exceeds the revenue lift (6.5%): per-impression fees are earned identically by both policies once quotas fill, so planning&rsquo;s advantage is concentrated wholly in the click-priced component of revenue. In markets weighted further toward performance pricing, the revenue gap widens toward the click gap.</p>
+<p>The simulation carries its own controls. Both policies are verified against the clairvoyant bound in every replication. On degenerate instances where all campaigns share identical click probabilities, so pairing cannot matter, the measured lift is 0.000%, confirming that the gap measures allocation quality and not an artifact of the harness. And the planned policy&rsquo;s 93.8% of a bound computed with perfect hindsight shows that forecast noise costs the plan only a few points, the residual that Section&nbsp;6&rsquo;s pacing mechanism and the refinement loop exist to absorb.</p>
+
+<h2><span class="secno">8</span>Why this decomposition works</h2>
+<p><strong>The optimization lives where time is cheap.</strong> Global allocation over all campaigns and segments is a large linear program, and it is solved where minutes are available, not milliseconds. The serving path touches five small tables and does arithmetic. This is the classic plan/execute split, applied so that the online system inherits the quality of the offline optimum at lookup cost.</p>
+<p><strong>Pooling defeats sparsity.</strong> No individual generates enough clicks to estimate their own response rates. Clusters do. Soft membership then re-personalizes the pooled estimates, blending each subscriber&rsquo;s several behavioral neighborhoods instead of forcing a single label. The same back-off logic handles new campaigns (borrow from similar campaigns) and profile-less subscribers (cluster by response history alone), so one mechanism covers three cold-start problems.</p>
+<p><strong>The plan is a baseline, not a cage.</strong> Real traffic never matches the forecast. By carrying planned counts into the serving state and steering with a performance index, the system tolerates forecast error gracefully: small deviations are corrected impression by impression, and persistent ones are evidence, fed back into the next modeling cycle rather than silently accumulated.</p>
+<p><strong>Every representation is serving-shaped.</strong> Bit masks make targeting tests branchless; pre-computed distances make personalization a weighted sum; per-(cluster, campaign) rows make pacing a two-row query. The offline stage does not merely produce a model, it compiles one, in the same sense a compiler turns a program into a form the machine executes directly.</p>
+
+<h2><span class="secno">9</span>Scope and assumptions</h2>
+<p>The architecture optimizes expected revenue for a known campaign portfolio over a planning horizon; it does not address auction-based pricing, real-time bidding against external demand, or creative selection within a campaign. Its guarantees rest on the stationarity assumptions of Section&nbsp;5: allocation quality degrades in proportion to how far future traffic and response distributions drift from the modeled ones between refinement cycles, which sets the practical requirement for how frequently the offline stage must re-run. Exposure policy enforcement is per-subscriber and rule-based; richer fatigue models would slot into step&nbsp;2 without changing the surrounding machinery.</p>
+
+<footer class="colophon">
+  Technical report on a two-stage architecture for revenue-optimal ad impression allocation: offline predictive modeling and planning, online table-driven decisioning with pacing, and a closed feedback loop.
+</footer>
+
+</div>
+
+</html>
