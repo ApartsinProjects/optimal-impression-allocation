@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Optimal Ad Impression Allocation under Fine Targeting, Campaign Quotas, and Finite Supply</title>
+<title>Segment Where the Interaction Persists</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -273,45 +273,24 @@
 
 <header class="masthead">
   <p class="eyebrow">Preprint</p>
-  <h1>Optimal Ad Impression Allocation under Fine Targeting, Campaign Quotas, and Finite Supply</h1>
-  <p class="standfirst">When narrow targets contend for scarce inventory, per-event greedy serving forfeits revenue; an offline allocation plan, executed online in constant time, recovers it.</p>
+  <h1>Segment Where the Interaction Persists</h1>
+  <p class="standfirst">What public advertising logs reveal about plan-based impression allocation: a pre-committable segmentation rule, a bias-audited replay protocol, and a regime map for when planning pays.</p>
   <p class="byline">Alexander Apartsin&ensp;&middot;&ensp;August 2026</p>
 </header>
 
 <section class="abstract">
   <h2>Abstract</h2>
-  <p>A mobile network operator can serve advertising far more targeted and fine-grained than any web platform: subscription data supplies verified demographics and financial signals, and gateway-observed usage supplies complete browsing histories and click attribution under a single stable identity per subscriber. Advertisers exploit that precision by buying narrow, high-value targets. The setting imposes hard constraints: each campaign carries a contracted impression quota that must be delivered within its flight; targeting restricts every campaign to specific audiences, time windows, and content categories; per-subscriber frequency caps bound exposures across all inventory; subscribers arrive in unpredictable order; and each decision must complete within the latency of a page load. Precision concentrates demand: finely targeted campaigns compete for the same scarce sub-audiences and hours, so every impression granted to one campaign is a measurable loss to another. The greedy rule of serving whichever ad the viewer is most likely to click therefore systematically misallocates this contested inventory. Fine targeting thus creates the allocation problem, while complete attribution makes it solvable: click probabilities per campaign and segment are measured, not guessed, so the trade-off between any two assignments is a number. This report presents a two-stage architecture that exploits both facts. An offline stage clusters subscribers by profile and response behavior, estimates click probabilities per campaign and segment, forecasts traffic, and solves a linear program that allocates every campaign's quota across segments for maximum expected revenue. The resulting plan is compiled into bit-masked lookup tables that an online stage executes per impression in constant time, blending cluster-level click rates through soft-membership weights and steering delivery back to the planned trajectory with a performance index. In Monte-Carlo simulation at realistic scale (25 campaigns, 60 segments, 200,000 impressions per run, 20 replications), the planned policy delivers a mean 6.5% revenue lift and 33% more expected clicks than greedy serving on identical event streams, and captures 94% of the offline optimum computed with hindsight, despite serving against forecast rather than realized traffic. On real logs (26.6M impressions of the public Taobao display-advertising dataset), walk-forward replay over five independent serving days confirms the architecture end-to-end: the plan beats greedy serving by 3.5% expected clicks (z&nbsp;=&nbsp;5.0, every fold positive) and beats an adaptive dual-price pacing baseline by 0.9% (z&nbsp;=&nbsp;2.0), on a configuration fixed in advance by a measurable design rule; under over-subscription stress the plan&rsquo;s advantage over plan-blind adaptive pacing grows to 5&ndash;7%, and feedback execution of the plan itself (periodic re-solving, or tracking the plan&rsquo;s dual prices) adds a further one percent, so the offline optimization is where the value is created and serving should track it. The rule behind the configuration: segment on the axes whose campaign-by-segment interaction persists across planning windows. Served responses feed the next planning cycle, closing the loop.</p>
+  <p>Under fixed campaign quotas, impression allocation can exploit exactly one statistical object: campaign-by-segment interaction in click-through rate that persists across planning windows. Main effects are neutralized, campaign effects by the quotas and segment effects by supply. We give a pre-committable rule for choosing the segmentation an allocator should use: measure the persistence of double-centered interaction residuals across adjacent planning windows, segment only on the axes that persist, and set granularity in proportion to per-cell data density. On 26.6M impressions of the Taobao display-advertising log the rule fixes the configuration in advance and predicts the full ex-post ablation: activity tiers pay, demographics and time do not, and finer granularity pays only while cells stay dense. On Avazu the rule ranks axes consistently and correctly identifies sub-day portfolio churn as the boundary where planning fails.</p>
+  <p>Evaluation uses a replay protocol hardened against the traps we document: single-model replay inflates lift roughly 9% through a winner&rsquo;s curse, and our dual-model scoring, exact uniform-null control, support and observable-selection audits, matched-action outcome bracket, and user-clustered inference (headline z&nbsp;=&nbsp;4.6) close them. The protocol yields a regime map. At exact feasibility, plan-informed policies beat greedy serving by 3.5&ndash;4.4% expected clicks and tuned dual-price pacing nearly matches them. Under over-subscription (quotas at 110&ndash;150% of supply) every dual-price variant collapses below greedy, warm-starting makes it worse, and only LP-solving policies survive, with the periodically re-solved plan dominating every regime (+2.2 to +4.4% over greedy, z&nbsp;&ge;&nbsp;3.4).</p>
 </section>
 
 <h2><span class="secno">1</span>Introduction</h2>
 <p>A mobile advertising platform must answer one question millions of times a day: <em>a subscriber has just opened a page; which campaign should fill this impression?</em> The obvious answer, show whichever ad this subscriber is most likely to click, is wrong. Campaigns carry contracted impression quotas, subscribers arrive in an unpredictable order, and every impression given to one campaign is an impression denied to all others. Serving each impression greedily fills popular campaigns with the first subscribers who arrive, not those who respond best, and leaves the remaining campaigns with a poorly matched audience.</p>
-<p>On the open web this failure is blunted by coarseness. A cookie-based ad network targets broad, loosely defined audiences, because that is all its data supports: identity is a resettable browser artifact, demographics are inferred, and each network attributes responses only on the slice of the web it instruments. Broad audiences are interchangeable audiences: most impressions have several roughly equivalent uses, so the opportunity cost of a greedy choice is small. Operator-run mobile advertising inverts every one of these conditions. The operator holds verified declared demographics, financial and purchase signals, network-observed location, and, because all browsing crosses its gateway, <strong>complete response attribution</strong>: every impression and every click, on every site, joined under one stable subscriber identity. Data of this quality supports far finer segmentation, and finer segmentation is precisely what advertisers pay an operator for: not &ldquo;males 18&ndash;49&rdquo; but urban music buyers on sports content on weekend afternoons.</p>
-<p>Precision is what turns serving into an allocation problem. Narrow, high-value targets are scarce, and campaigns defined this precisely overlap: the subscribers one advertiser most wants are the subscribers other advertisers most want, in the same hours, on the same content. Contention over specific sub-audiences stops being an edge case and becomes the normal operating condition. Every impression then carries a real opportunity cost, and greedy serving, harmless when audiences are interchangeable, systematically hands the scarcest inventory to whichever campaign arrives first. The same richness that creates the problem also makes it solvable: with complete attribution, the click probability of every (campaign, segment) pair is a measured quantity, so the cost of any assignment against any alternative can be computed rather than guessed. An operator that targets precisely and attributes completely does not merely benefit from global optimization; it forfeits the value of its own data without it. Precision here is a property of <em>demand</em>: advertisers buy narrow targets, and narrow targets contend. Which segmentation the allocator itself should use is a separate, empirical question, and Section&nbsp;8 shows its answer is governed by which interactions persist, not by maximal fineness.</p>
-<p>This report describes an architecture that treats ad serving as that <strong>global allocation problem</strong>. An offline analytics stage learns who responds to what, clusters subscribers by profile and response behavior, predicts traffic per segment, and solves for an allocation plan that maximizes expected revenue across all campaigns at once. The plan is compiled into compact lookup tables. An online decision stage then serves each impression in constant time by consulting those tables, tracking actual delivery against plan, and steering each campaign back toward its planned trajectory. Feedback from served impressions flows back to analytics, closing the loop and refining the model each cycle. Section&nbsp;2 details the operator&rsquo;s data advantage, Section&nbsp;3 quantifies the cost of greedy serving on a minimal instance, Sections&nbsp;4&ndash;6 develop the formulation and both stages, Section&nbsp;7 confirms the revenue case by simulation, Section&nbsp;8 validates it by replaying 26.6 million impressions of a public advertising log, and Section&nbsp;9 situates the design in the online-allocation and offline-evaluation literature.</p>
+<p>On the open web this failure is blunted by coarseness: broad audiences are interchangeable audiences, so the opportunity cost of a greedy choice is small. Operator-run mobile advertising inverts that condition: verified profiles and gateway-complete response attribution support far finer segmentation, and fine segmentation is precisely what advertisers pay an operator for, not &ldquo;males 18&ndash;49&rdquo; but urban music buyers on sports content on weekend afternoons. That deployment setting motivated this study; Section&nbsp;8 describes the serving design built for it.</p>
+<p>Precision is what turns serving into an allocation problem. Narrow, high-value targets are scarce, and campaigns defined this precisely overlap: the subscribers one advertiser most wants are the subscribers other advertisers most want, in the same hours, on the same content. Contention over specific sub-audiences stops being an edge case and becomes the normal operating condition. Every impression then carries a real opportunity cost, and greedy serving, harmless when audiences are interchangeable, systematically hands the scarcest inventory to whichever campaign arrives first. The same richness that creates the problem also makes it solvable: with complete attribution, the click probability of every (campaign, segment) pair is a measured quantity, so the cost of any assignment against any alternative can be computed rather than guessed. An operator that targets precisely and attributes completely does not merely benefit from global optimization; it forfeits the value of its own data without it. Precision here is a property of <em>demand</em>: advertisers buy narrow targets, and narrow targets contend. Which segmentation the allocator itself should use is a separate, empirical question, and Section&nbsp;5 shows its answer is governed by which interactions persist, not by maximal fineness.</p>
+<p>This paper treats ad serving as that <strong>global allocation problem</strong> and makes three contributions, each validated on public advertising logs. First, a pre-committable segmentation rule: measure the persistence of campaign-by-segment interaction residuals across adjacent planning windows, segment only on the axes that persist, and scale granularity to per-cell data density. Second, a replay evaluation protocol for allocation policies, hardened against the winner&rsquo;s curse and selection artifacts that we show inflate naive replay. Third, a regime map locating where planning pays: plan-informed policies lead at exact feasibility and dominate outright under over-subscription, where dual-price adaptation collapses. Section&nbsp;2 quantifies the cost of greedy serving on a minimal instance and Section&nbsp;3 states the allocation program. Section&nbsp;4 develops the replay protocol, Section&nbsp;5 the persistence rule, and Section&nbsp;6 the regime map. Section&nbsp;7 calibrates the harness on a synthetic market with known ground truth, Section&nbsp;8 presents the reference serving architecture that motivated the study, and Section&nbsp;9 situates the work in the online-allocation and offline-evaluation literature.</p>
 
-<h2><span class="secno">2</span>The operator&rsquo;s vantage point</h2>
-<p>Mobile advertising delivered by the network operator itself is a different discipline from advertising on the open web, and the difference is the data. A web ad network observes a browser: an unverified, resettable cookie, activity on the sites it happens to instrument, and demographics inferred by guesswork. A network operator observes a <em>customer</em>. The subscriber relationship supplies a verified identity anchored in a billing account, declared attributes such as age, gender, and home address, and financial signals such as plan type, spending level, and purchase history for content and app spending. The network itself supplies what no publisher-side system can assemble: every browsing session crosses the operator&rsquo;s gateway regardless of destination site, so the response history is complete rather than sampled from one publisher&rsquo;s corner of the web, and it is joined under one stable identifier rather than stitched probabilistically across cookies and devices.</p>
-
-<div class="tablewrap">
-<table>
-  <thead><tr><th>Dimension</th><th>Web ad network</th><th>Network operator</th></tr></thead>
-  <tbody>
-    <tr><td>Identity</td><td>Cookie or device fingerprint; resettable, unverified</td><td>Subscriber account; stable, verified, one per person</td></tr>
-    <tr><td>Demographics</td><td>Inferred from behavior</td><td>Declared at subscription: age, gender, address</td></tr>
-    <tr><td>Financial signal</td><td>None or modeled</td><td>Plan, spend level, content purchase history</td></tr>
-    <tr><td>Location</td><td>Coarse, via IP</td><td>Network-observed, continuous</td></tr>
-    <tr><td>Browsing coverage</td><td>Sites the network instruments</td><td>All traffic through the gateway</td></tr>
-    <tr><td>Exposure control</td><td>Per-site frequency caps</td><td>Global caps across all inventory, per subscriber</td></tr>
-  </tbody>
-</table>
-</div>
-
-<p>This vantage point changes what is <em>possible</em>, and each advantage maps directly onto a component of the architecture in this report. Verified profiles and complete response histories make the proximity metric of Section&nbsp;5.2 meaningful: subscribers are clustered on real attributes and full behavioral records, not on noisy proxies, so the clusters are stable enough to pool click statistics over. Complete traffic visibility makes the context slots and traffic forecasts of Section&nbsp;5.3 accurate: the operator sees the whole denominator, every impression opportunity, not just the ones flowing through partnered sites. The single stable identifier makes global exposure policy enforceable: a frequency cap means the subscriber saw at most so many ads today <em>anywhere</em>, which no cookie-scoped system can promise. And the billing relationship closes the loop commercially, since the same account that receives the ad can redeem the offer.</p>
-<p>Two consequences deserve emphasis, because the allocation machinery depends on them quantitatively. First, <strong>segmentation can be far finer</strong>. Cluster granularity is limited by statistics: a segment must generate enough impressions and clicks for its estimated rates to be trustworthy. Because the operator&rsquo;s data is complete (every subscriber, every session) and clean (verified attributes, deduplicated identity), the same statistical reliability is reached with much smaller segments than inferred web data allows. Finer segments mean click probabilities that track real behavioral differences instead of averaging over them, and every refinement of <em>p<sub>c,s</sub></em> translates directly into allocation-plan revenue. Second, <strong>overall load is predictable</strong>. The operator observes total traffic, its daily and weekly rhythm, per content category and per region, so the supply forecast <em>H<sub>s</sub></em> is estimated from a census rather than a sample. Accurate supply forecasts are what make an offline plan trustworthy at all: a plan allocating impressions that never materialize, or missing volume that does, must be repaired constantly at serving time. Rich subscriber knowledge sharpens both sides of the optimization, the value of each pairing and the volume available to pair.</p>
-<p>The vantage point also carries obligations that shape the design. This data is usable for advertising only within a consent and data-protection framework: profiling subscribers requires a lawful basis and per-subscriber opt-out under regimes such as the GDPR and ePrivacy rules, and gateway-observed browsing is subject to purpose limitation. The architecture is built for data minimization under those constraints. Raw attributes and browsing records are confined to the offline stage; the serving path receives only anonymous cluster distances and campaign eligibility lists, and every online decision reads aggregate tables rather than individual histories. Segment coarseness is itself a privacy parameter: the segments that carry allocation value in Section&nbsp;8 are a handful of aggregate behavior tiers, not individual dossiers. Not every subscriber has a profile at all: prepaid subscribers may be anonymous, which is why the clustering machinery supports membership computed from response behavior alone (Section&nbsp;5.3).</p>
-<p>Rich knowledge, however, only determines how well each individual impression <em>could</em> perform. It says nothing about how impressions should be divided among competing campaigns. That is a separate problem, and it is where the revenue argument begins.</p>
-
-<h2><span class="secno">3</span>Motivation: the cost of deciding one impression at a time</h2>
+<h2><span class="secno">2</span>The allocation problem: a worked example</h2>
 <p>Consider the smallest interesting instance. Two campaigns run at the same time: a soft drink and a sports car. Each has bought exactly <strong>two impressions</strong>. Four subscribers will each generate one ad opportunity. From past behavior we can estimate every subscriber&rsquo;s probability of clicking each campaign:</p>
 
 <div class="tablewrap">
@@ -395,7 +374,7 @@
   <p><strong>The core insight:</strong> click probability is a property of a <em>pair</em> (audience, campaign), not of a campaign alone. Revenue is maximized by choosing the pairing globally, subject to each campaign&rsquo;s quota, and this choice can be made ahead of time because audience behavior is statistically predictable even though individual events are not.</p>
 </div>
 
-<h2><span class="secno">4</span>Problem formulation</h2>
+<h2><span class="secno">3</span>Formulation</h2>
 <p>Formally, the planning stage solves a transportation-style optimization. Audience supply is described by segments: <em>s</em> ranges over (cluster, context slot) pairs, where a cluster is a group of behaviorally similar subscribers and a context slot is a recurring situation (a time window crossed with a content category). Let <em>H<sub>s</sub></em> be the predicted number of impressions segment <em>s</em> will generate during the planning horizon, and <em>p<sub>c,s</sub></em> the estimated probability that an impression from segment <em>s</em> produces a click on campaign <em>c</em>. Each campaign pays <em>r<sub>c</sub></em> per impression and <em>q<sub>c</sub></em> per click, and has bought <em>Q<sub>c</sub></em> impressions. The plan chooses <em>x<sub>c,s</sub></em>, the number of impressions of campaign <em>c</em> allocated to segment <em>s</em>:</p>
 
 <div class="formula">maximize    &Sigma;<sub>c,s</sub>  x<sub>c,s</sub> &middot; ( r<sub>c</sub> + q<sub>c</sub> &middot; p<sub>c,s</sub> )
@@ -406,276 +385,62 @@ subject to  &Sigma;<sub>c</sub> x<sub>c,s</sub>  &le;  H<sub>s</sub>        (seg
             x<sub>c,s</sub>  &ge;  0</div>
 
 <p>Figure&nbsp;1 is this program with two campaigns, four single-subscriber segments, <em>H<sub>s</sub></em>&nbsp;=&nbsp;1 and <em>Q<sub>c</sub></em>&nbsp;=&nbsp;2. At production scale the same structure holds; the segments are just coarser and the counts larger. Because both objective and constraints are linear, the plan is solvable with off-the-shelf LP solvers (we use the dual simplex of [1]) even for large instances, and, critically, it is solved <strong>offline</strong>. The online server never optimizes; it executes a pre-computed plan and corrects for drift.</p>
-<p>Three practical notes. First, the objective prices impressions and clicks separately, so campaigns that pay mostly per impression and campaigns that pay mostly per click compete in one currency, expected revenue; when supply suffices, quotas bind at the optimum (every unit of x earns at least r<sub>c</sub>&nbsp;&gt;&nbsp;0), and the impression-price term becomes a constant, making the allocation choice a pure expected-clicks problem; Section&nbsp;8.3 studies the over-subscribed regime where this simplification fails. Second, the quota appears as an upper bound: when targeting and supply cannot fill a quota, the program returns the revenue-maximal under-delivery rather than infeasibility, and the shortfall is the input to make-good scheduling, which we treat as outside the model. Third, the quota constraint is what makes greedy serving inadequate: without it, serving every impression to its highest-value campaign would be optimal, and no planning stage would be needed.</p>
+<p>Three practical notes. First, the objective prices impressions and clicks separately, so campaigns that pay mostly per impression and campaigns that pay mostly per click compete in one currency, expected revenue; when supply suffices, quotas bind at the optimum (every unit of x earns at least r<sub>c</sub>&nbsp;&gt;&nbsp;0), and the impression-price term becomes a constant, making the allocation choice a pure expected-clicks problem; Section&nbsp;6 studies the over-subscribed regime where this simplification fails. Second, the quota appears as an upper bound: when targeting and supply cannot fill a quota, the program returns the revenue-maximal under-delivery rather than infeasibility, and the shortfall is the input to make-good scheduling, which we treat as outside the model. Third, the quota constraint is what makes greedy serving inadequate: without it, serving every impression to its highest-value campaign would be optimal, and no planning stage would be needed.</p>
 
-<h2><span class="secno">5</span>The offline stage: learning the inputs to the plan</h2>
-<p>The allocation program needs two inputs that do not exist in raw data: predicted traffic per segment (<em>H<sub>s</sub></em>) and click probabilities per campaign-segment pair (<em>p<sub>c,s</sub></em>). The offline analytics stage builds both from event history, under three modeling assumptions, each holding with high probability rather than certainty:</p>
-<ol>
-  <li>The distribution of (context, profile) pairs observed in the past will recur in the future.</li>
-  <li>Subscribers who responded similarly under similar conditions will continue to respond similarly.</li>
-  <li>Subscribers who respond similarly share something observable in their profiles or histories.</li>
-</ol>
-<p>Assumption 1 justifies forecasting traffic from history; assumptions 2 and 3 justify pooling sparse per-subscriber click data into clusters that have enough volume to estimate probabilities reliably.</p>
+<h2><span class="secno">4</span>Replay evaluation protocol</h2>
+<p>A synthetic market controls everything (Section&nbsp;7); real logs control nothing, which is the point. The experiments of Sections&nbsp;4&ndash;6 replay the public Taobao display-advertising dataset [2,&nbsp;3]: 26.6 million impressions over 8 days in May 2017, roughly 1.1 million users with declared demographics, and explicit campaign identifiers, the closest public analog to an operator's data. The market is reconstructed from the log itself: campaigns are the top 100 by planning-window volume, each campaign&rsquo;s quota is the number of impressions it actually received in the serving window, and policies re-pair the identical impression stream, so the counterfactual is <em>the same inventory, re-allocated</em>.</p>
 
-<h3>5.1 Response records</h3>
-<p>The atomic unit of evidence is an ad response record: who saw what, in what context, and whether they clicked.</p>
+<p>Replay evaluation has a trap. If the table of click probabilities that the planner optimizes also scores the outcome, both the plan and the bound harvest the table&rsquo;s estimation noise: in our first run the measured lift was +8.9% while the mean assignment value exceeded the best campaign&rsquo;s true click rate, an impossibility. The design that survives this is <strong>dual-model scoring</strong>: policies plan and serve using only planning-window estimates, while all values, including the hindsight bound, are scored under an independent table fitted on the serving window. A uniform-probability control run then yields exactly 0.0% lift with every policy at exactly 100% of the bound, confirming the harness measures pairing quality and nothing else. Evaluation is <strong>walk-forward</strong>: for each of five serving days, the plan is fitted on all prior days and scored on that day alone. The adaptive baseline is fully specified: a dual-price pacing policy that serves the quota-remaining campaign maximizing p&#770;<sub>cs</sub>&nbsp;&minus;&nbsp;&mu;<sub>c</sub>, updating &mu;<sub>c</sub>&nbsp;&larr;&nbsp;&mu;<sub>c</sub>&nbsp;+&nbsp;&eta;(served<sub>c</sub>/Q<sub>c</sub>&nbsp;&minus;&nbsp;t/T) after each impression with &eta; set to half the global click rate; it consults no plan. Reported errors are the scoring table&rsquo;s closed-form binomial variance propagated through each comparison&rsquo;s assignment difference; the across-fold spread of the five per-fold lifts independently reproduces the same standard error, and the all-folds-positive sign pattern supports the parametric statement distribution-free. The uniform control defends the harness; a further check defends the scorer itself: standardizing the scoring table along the strongest observable within-cell covariate the segmentation does not use (each user&rsquo;s own training-window click propensity) shifts the headline lifts by at most +0.3pp, upward, so observable within-cell selection in the logged exposures does not account for the measured gains. Support is also measured directly: only 6% of the planned policy&rsquo;s assignment mass (and 5% of the re-paired mass) lands in cells with fewer than 100 logged serving-window impressions, and scoring those thin cells with a pooled campaign-level fallback moves the headline from +3.46% to +2.99%; the counterfactual does not rest on extrapolated cells. (Forcing the fallback on all cells below 1,000 impressions, 78% of the mass, collapses the lift toward zero, as it must: a campaign-constant scorer deletes the interaction dimension, and under fixed quotas every assignment then scores equally, the same argument as the uniform control.) The replay isolates the architecture&rsquo;s allocation core, plan against serving policy at segment granularity: every campaign is eligible on every segment, and the per-subscriber serving components of Section&nbsp;8.2 (soft-membership blending, frequency caps, threshold pacing) operate below this granularity and are not exercised by these experiments.</p>
+
+<h2><span class="secno">5</span>The persistence rule</h2>
+<p>Allocation under fixed quotas can exploit exactly one thing: campaign-by-segment <em>interaction</em> in click probability that persists from the planning window to the serving window. Campaign main effects persist strongly (week-over-week correlation 0.81) but fixed quotas neutralize them; segment main effects are fixed by supply. Measuring the persistence of double-centered interaction residuals per candidate axis therefore predicts, in advance, which segmentations can pay:</p>
 <div class="tablewrap">
 <table>
-  <thead><tr><th>Time of day</th><th>Day of week</th><th>Content category</th><th>Campaign</th><th>Click</th></tr></thead>
+  <thead><tr><th>Segmentation axis</th><th>Interaction persistence (r)</th><th>Interaction size beyond noise</th></tr></thead>
   <tbody>
-    <tr><td class="mono">11:23</td><td>Monday</td><td>News</td><td class="mono">C1 (active)</td><td class="num">0</td></tr>
-    <tr><td class="mono">14:15</td><td>Monday</td><td>Sport</td><td class="mono">C2 (active)</td><td class="num">1</td></tr>
-    <tr><td class="mono">18:14</td><td>Sunday</td><td>Sport</td><td class="mono">C4 (past)</td><td class="num">1</td></tr>
+    <tr><td>Activity tier (usage volume)</td><td class="num">0.48&ndash;0.54</td><td class="num">~1pp on a 5.5pp base</td></tr>
+    <tr><td>Gender &times; age</td><td class="num">0.28</td><td class="num">~0.5pp</td></tr>
+    <tr><td>Hour &times; position slot</td><td class="num">0.08</td><td class="num">~0</td></tr>
   </tbody>
 </table>
 </div>
-<p>Records are grouped per subscriber and joined with the profile (age, gender, location, income band, purchase indicators) where one is available. Past campaigns matter as much as active ones: a subscriber&rsquo;s reaction to a finished campaign is evidence about how they will react to similar future ones.</p>
-
-<h3>5.2 Proximity and clustering</h3>
-<p>Subscribers are clustered by a weighted distance that mixes profile similarity with response-pattern similarity: response to the same campaigns (active and past) and to similar campaigns. Each attribute contributes its own distance component:</p>
+<p>The persistence table fixes the evaluation configuration <em>before</em> any replay is scored: the activity axis persists most strongly, and its measured persistence improves from four tiers to eight (r&nbsp;=&nbsp;0.48 to 0.54), so the pre-committed configuration for the 100-campaign market is eight activity tiers. Both headline comparisons are reported for that single configuration; the remaining rows are the ablation that tests the rule.</p>
 <div class="tablewrap">
 <table>
-  <thead><tr><th>Attribute</th><th>Distance component</th></tr></thead>
+  <thead><tr><th>Segments</th><th>Count</th><th>Planned vs greedy</th><th>z</th><th>Planned vs adaptive pacing</th><th>z</th></tr></thead>
   <tbody>
-    <tr><td>Age</td><td>Absolute difference</td></tr>
-    <tr><td>Gender</td><td>Fixed penalty if different</td></tr>
-    <tr><td>Campaign affinity</td><td>By campaign category; fixed penalty if different</td></tr>
-    <tr><td>Day of week</td><td>Absolute difference, circular</td></tr>
-    <tr><td>Location (x,&nbsp;y)</td><td>Straight-line distance</td></tr>
+    <tr><td><strong>Activity, 8 tiers (pre-committed)</strong></td><td class="num">8</td><td class="num"><strong>+3.46% &plusmn; 0.69pp</strong></td><td class="num">+5.0</td><td class="num"><strong>+0.92% &plusmn; 0.47pp</strong></td><td class="num">+2.0</td></tr>
+    <tr><td>Activity, 4 tiers</td><td class="num">4</td><td class="num">+2.51% &plusmn; 0.50pp</td><td class="num">+5.0</td><td class="num">+1.15% &plusmn; 0.31pp</td><td class="num">+3.7</td></tr>
+    <tr><td>Tier &times; demographics</td><td class="num">168</td><td class="num">+1.93% &plusmn; 0.91pp</td><td class="num">+2.1</td><td class="num">+0.40%</td><td class="num">+0.6</td></tr>
+    <tr><td>Demographics only</td><td class="num">48</td><td class="num">&minus;0.20% &plusmn; 0.61pp</td><td class="num">&minus;0.3</td><td class="num">+0.46%</td><td class="num">+1.1</td></tr>
   </tbody>
 </table>
 </div>
-<p>Membership is deliberately <strong>soft</strong>. A subscriber is not filed into one cluster; they carry a pre-computed distance to each nearby cluster. A 35-year-old married streaming subscriber in a large city may sit at distance 0.8 from the &ldquo;metropolitan professionals&rdquo; cluster and 0.1 from &ldquo;music lovers&rdquo;; a 22-year-old gaming subscriber in the same city sits close to &ldquo;gamers&rdquo; and &ldquo;music lovers&rdquo; instead. These distances become interpolation weights at serving time (Section&nbsp;6), so predictions blend the behavior of every cluster the subscriber resembles.</p>
+<p>Per-fold lifts for the pre-committed configuration, so signs are visible rather than summarized: against greedy +5.2, +4.2, +2.6, +3.2, +2.2 (five of five positive; one-sided sign-test p&nbsp;=&nbsp;0.03 independent of the parametric error model); against adaptive pacing +2.2, +1.7, +1.9, &minus;0.5, &minus;0.9 (three of five positive, consistent with its z&nbsp;=&nbsp;2.0).</p>
+<p>Three conclusions. First, the architecture&rsquo;s claim holds on real inventory: on the pre-committed configuration the plan beats greedy serving by 3.5% expected clicks (positive in every fold) and beats an adaptive dual-price pacing policy in the family of online allocation methods [5], the strong online baseline, by 0.9% (z&nbsp;=&nbsp;2.0; the four-tier ablation row separates from pacing at z&nbsp;=&nbsp;3.7), while serving from precomputed tables. Second, <strong>persistence, not granularity, carries the value</strong>: eight segments on the persistent axis beat 168 finer ones, because finer cells add estimation noise and re-pairing churn faster than they add exploitable signal; and the right granularity scales with per-cell data density (in a 500-campaign market, four tiers beat eight). Third, the persistence measurement itself is the deployable design rule: before segmenting, correlate double-centered interaction residuals across adjacent planning windows, and segment only on axes that persist. The rule generalizes: on a second public log (Avazu, 40.4M mobile impressions [4]), the same measurement ranks page category as the most persistent axis (r&nbsp;=&nbsp;0.88) and, in both datasets, time-of-day as the least, confirming that time belongs to the pacing loop, not to segmentation. Avazu&rsquo;s own replay, in contrast, exposes a boundary rather than a lift: its ad portfolio and delivery mix turn over within a day, faster than any daily plan, which is the stability condition Section&nbsp;11 states. With that rule applied, the replayed policies capture 85&ndash;91% of the hindsight bound; the residual is the estimation noise and week-over-week drift that the pacing loop of Section&nbsp;8.2 exists to absorb.</p>
+<p><strong>The granularity-density frontier.</strong> Varying tier count against market size traces the frontier directly. In the top-100 market, 8 tiers deliver +3.46% over greedy (z&nbsp;=&nbsp;5.0) while 16 tiers deliver +0.32% (z&nbsp;=&nbsp;0.4). In the top-500 market, 4 tiers deliver +1.55% (z&nbsp;=&nbsp;4.8), 8 tiers +0.94% (z&nbsp;=&nbsp;2.2), and 16 tiers &minus;0.43% (z&nbsp;=&nbsp;&minus;0.9). Optimal granularity shrinks monotonically as per-cell density falls, so the rule is: persistence picks the axis, density picks the depth.</p>
 
-<h3>5.3 Cluster representation and click estimation</h3>
-<p>Each cluster is summarized by two compact structures. Its <em>context slots</em> describe when and where the cluster generates traffic, with predicted hit counts; this is the supply side <em>H<sub>s</sub></em>. Its <em>click statistics</em> record impressions and clicks per campaign per context slot, the raw material for <em>p<sub>c,s</sub></em>:</p>
+<h2><span class="secno">6</span>The regime map</h2>
+<p>Over-subscription is the regime that motivates planning, and the market reconstruction supports stressing it directly. Quotas set to each campaign&rsquo;s realized delivery make the market exactly feasible; scaling all quotas above deliverable supply forces genuine contention, and policies choose which campaigns under-deliver. Five policies replay each regime on the pre-committed configuration: the static plan; a periodically re-solved plan (the same LP re-solved on remaining quotas and prorated remaining supply every 20,000 impressions); a plain dual-price pacing policy; and a tuned dual-price policy (step size tuned by simulated serving on the last planning day), started either cold or warm from the plan LP&rsquo;s quota shadow prices. Lift versus greedy, combined over the five walk-forward folds, with z in parentheses:</p>
 <div class="tablewrap">
 <table>
-  <thead><tr><th>Context slot</th><th>Time of day</th><th>Day of week</th><th>Category</th><th>Predicted hits</th></tr></thead>
+  <thead><tr><th>Quota scale</th><th>Static plan</th><th>Re-solved plan</th><th>Dual (plain)</th><th>Dual (tuned, cold)</th><th>Dual (tuned, warm)</th></tr></thead>
   <tbody>
-    <tr><td class="mono">CS1</td><td class="mono">10:00&ndash;12:00</td><td>Mon&ndash;Tue</td><td>News, Sport</td><td class="num">3,000</td></tr>
-    <tr><td class="mono">CS2</td><td class="mono">11:00&ndash;17:00</td><td>Sun</td><td>Sport</td><td class="num">4,000</td></tr>
+    <tr><td class="num">1.0</td><td class="num">+3.46% (5.0)</td><td class="num">+4.40% (6.7)</td><td class="num">+2.38% (4.9)</td><td class="num">+3.91% (7.3)</td><td class="num">+4.40% (7.7)</td></tr>
+    <tr><td class="num">1.1</td><td class="num">+2.16% (3.1)</td><td class="num">+3.49% (5.2)</td><td class="num">&minus;2.76% (&minus;4.6)</td><td class="num">+1.46% (3.0)</td><td class="num">&minus;1.08% (&minus;1.9)</td></tr>
+    <tr><td class="num">1.25</td><td class="num">+1.56% (2.2)</td><td class="num">+3.39% (5.2)</td><td class="num">&minus;2.97% (&minus;4.3)</td><td class="num">+0.70% (1.3)</td><td class="num">&minus;1.71% (&minus;2.8)</td></tr>
+    <tr><td class="num">1.5</td><td class="num">+0.28% (0.4)</td><td class="num">+2.22% (3.4)</td><td class="num">&minus;5.83% (&minus;7.7)</td><td class="num">&minus;1.92% (&minus;3.0)</td><td class="num">&minus;3.38% (&minus;5.1)</td></tr>
   </tbody>
 </table>
 </div>
-<div class="tablewrap">
-<table>
-  <thead><tr><th>Campaign</th><th>Context slot</th><th>Impressions</th><th>Clicks</th></tr></thead>
-  <tbody>
-    <tr><td class="mono">C1</td><td class="mono">CS1</td><td class="num">1,000</td><td class="num">3</td></tr>
-    <tr><td class="mono">C1</td><td class="mono">CS2</td><td class="num">2,000</td><td class="num">2</td></tr>
-    <tr><td class="mono">C2</td><td class="mono">CS1</td><td class="num">1,000</td><td class="num">7</td></tr>
-  </tbody>
-</table>
-</div>
-<p>For a brand-new campaign with no history of its own, probabilities are borrowed from the most similar past or active campaigns in the same category, the same pooling idea applied across campaigns instead of across subscribers. Where the profile itself is missing (anonymous or prepaid subscribers), distance to clusters is computed from response history alone, and the subscriber inherits the response statistics of the cluster they behave like. The design degrades gracefully as data thins out: per-subscriber evidence backs off to cluster evidence, and per-campaign evidence backs off to category evidence.</p>
+<p>At exact feasibility, plan-informed policies cluster at the top, and a tuned cold-started dual nearly matches the warm-started one (a +0.47pp gap, z&nbsp;=&nbsp;2.7). At feasibility, most of the value is the forecast itself, which every strong policy consumes.</p>
+<p>Under contention the picture inverts: every dual-price variant collapses below greedy, and warm-starting hurts (warm minus cold: &minus;2.4 to &minus;1.5pp, z&nbsp;&le;&nbsp;&minus;5), because shadow prices fitted to the planned quota pressure mislead once realized pressure differs. Only policies that solve the allocation LP survive contention, and the periodically re-solved plan dominates every regime, its edge over the static plan growing from +0.9% (z&nbsp;=&nbsp;2.8) to +1.9% (z&nbsp;=&nbsp;5.2).</p>
+<p>The deployment rule falls out directly: solve the LP, serve from its tables, and re-solve on the pacing cadence; do not replace the LP with dual-price adaptation in any contended market.</p>
+<p>Two inference notes anchor the table. The headline planned-versus-greedy comparison survives a user-clustered bootstrap (z&nbsp;=&nbsp;+4.55) and an across-fold t-test (t(4)&nbsp;=&nbsp;+5.50); the planned-versus-plain-dual cell at feasibility is fragile (z&nbsp;=&nbsp;1.9, t&nbsp;=&nbsp;1.3), and the ordering across regimes, not that single cell, is the claim. The matched-action bracket closes the loop on the scorer: on matched actions (2.0&ndash;2.3% of events, about 25,000 per policy), realized CTR exceeds model-scored CTR by a similar small relative margin for both policies (7.23% versus 6.69%, and 6.64% versus 6.25%), so the scorer understates outcomes slightly and symmetrically; cross-subset comparisons of matched CTRs are selection artifacts and are not policy values.</p>
 
-<h3>5.4 Compiling the plan into lookup tables</h3>
-<p>Solving the allocation program yields planned impression counts per (campaign, cluster, context slot). Everything the online server needs is then flattened into three lookup structures, so that no clustering, no distance computation, and no optimization happens on the serving path:</p>
-<div class="tablewrap">
-<table>
-  <thead><tr><th>Structure</th><th>Keyed by</th><th>Contents</th></tr></thead>
-  <tbody>
-    <tr><td><strong>Model table</strong></td><td class="mono">cluster &times; campaign</td><td>Targeted time slots and content categories as bit masks; planned impressions; expected clicks</td></tr>
-    <tr><td><strong>Match table</strong></td><td class="mono">subscriber</td><td>Campaigns this subscriber is eligible for under targeting rules</td></tr>
-    <tr><td><strong>Cluster table</strong></td><td class="mono">subscriber</td><td>Distance to each nearby cluster (the soft-membership weights)</td></tr>
-  </tbody>
-</table>
-</div>
-<p>Time and content targeting are encoded as fixed-width bit masks, 168 weekly hour-slots and up to 256 content categories, so an eligibility test at serving time is a bitwise AND rather than a rule evaluation. A model table row reads, in full: <em>&ldquo;cluster L1, campaign C1, time mask 0100&#8230;, content mask 1111&#8230;, 10,000 planned impressions, 450 expected clicks.&rdquo;</em> That one row carries targeting, allocation, and the performance baseline the online stage will pace against.</p>
-
-<h2><span class="secno">6</span>The online stage: executing the plan in real time</h2>
-<p>At serving time an impression event arrives carrying a subscriber identifier and a context (time, day, content category of the page being viewed). The decision engine must return a single campaign within the latency budget of a page load. It consults the three model structures plus two live state tables: a <strong>status table</strong> mirroring the model table but accumulating <em>actual</em> impressions and clicks, and a <strong>response table</strong> holding each subscriber&rsquo;s recent exposure records.</p>
-
-<figure>
-  <div class="figpanel">
-  <svg viewBox="0 0 720 240" role="img" aria-label="Closed loop between offline planning and online serving">
-    <defs>
-      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line)"/>
-      </marker>
-      <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
-      </marker>
-    </defs>
-    <!-- offline box -->
-    <rect x="40" y="60" width="220" height="120" rx="8" fill="none" stroke="var(--teal)" stroke-width="2"/>
-    <text x="150" y="98" text-anchor="middle" class="svgtitle">Offline analytics</text>
-    <text x="150" y="122" text-anchor="middle" class="svgnum">cluster &middot; predict &middot; plan</text>
-    <text x="150" y="142" text-anchor="middle" class="svgnum">(periodic refinement)</text>
-    <!-- online box -->
-    <rect x="460" y="60" width="220" height="120" rx="8" fill="none" stroke="var(--accent)" stroke-width="2"/>
-    <text x="570" y="98" text-anchor="middle" class="svgtitle">Online decision</text>
-    <text x="570" y="122" text-anchor="middle" class="svgnum">per impression, real time</text>
-    <text x="570" y="142" text-anchor="middle" class="svgnum">(lookup + pacing)</text>
-    <!-- forward arrow -->
-    <line x1="260" y1="95" x2="452" y2="95" stroke="var(--fig-line)" stroke-width="2" marker-end="url(#arr)"/>
-    <text x="356" y="84" text-anchor="middle" class="svglabel">MODEL + PLAN (TABLES)</text>
-    <!-- feedback arrow -->
-    <line x1="460" y1="150" x2="268" y2="150" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrA)"/>
-    <text x="364" y="172" text-anchor="middle" class="svglabel">RESPONSE FEEDBACK</text>
-  </svg>
-  </div>
-  <figcaption><span class="figno">Figure 2.</span> The closed loop. Offline analytics compiles the model and allocation plan into lookup tables; the online engine executes them per impression and streams response records back, which the next analytics cycle uses to refine clusters, probabilities, and the plan.</figcaption>
-</figure>
-
-<h3>6.1 The seven-step decision</h3>
-<ol class="steps">
-  <li><b>Find eligible campaigns</b><span class="uses">match table</span> Look up the campaigns this subscriber may be shown under targeting rules.</li>
-  <li><b>Apply exposure policy</b><span class="uses">response table</span> Drop campaigns that would violate frequency rules for this subscriber, a minimum interval between exposures, a maximum number of exposures per day.</li>
-  <li><b>Fetch cluster distances</b><span class="uses">cluster table</span> Retrieve the subscriber&rsquo;s pre-computed distances to nearby clusters.</li>
-  <li><b>Predict click probability per candidate</b><span class="uses">model table</span> Blend cluster-level click rates with the soft-membership weights (Section&nbsp;6.2).</li>
-  <li><b>Compute pacing per candidate</b><span class="uses">status table</span> Compare actual delivery against plan, prorated to this point in the flight (Section&nbsp;6.3).</li>
-  <li><b>Decide</b> If any campaign is critically underserved, serve it. Otherwise drop overserved campaigns and serve the candidate with the greatest expected revenue.</li>
-  <li><b>Update state</b><span class="uses">status + response tables</span> Increment the served campaign&rsquo;s actual counters and append the exposure record, which later feeds back to analytics.</li>
-</ol>
-<p>Every step is a keyed lookup, a bit-mask test, or arithmetic over a handful of rows. The expensive work (clustering, probability estimation, optimization) was all paid for offline.</p>
-
-<figure>
-  <div class="figpanel">
-  <svg viewBox="0 0 720 372" role="img" aria-label="Seven decision steps and the tables each one reads or writes">
-    <defs>
-      <marker id="arrT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="var(--teal)"/>
-      </marker>
-      <marker id="arrW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
-      </marker>
-    </defs>
-    <!-- step boxes -->
-    <g>
-      <rect x="40" y="15"  width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
-      <rect x="40" y="63"  width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
-      <rect x="40" y="111" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
-      <rect x="40" y="159" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
-      <rect x="40" y="207" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
-      <rect x="40" y="255" width="360" height="36" rx="5" fill="none" stroke="var(--teal)" stroke-width="2"/>
-      <rect x="40" y="303" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
-    </g>
-    <g font-size="13.5">
-      <text x="56" y="38">1&#8194;Find eligible campaigns</text>
-      <text x="56" y="86">2&#8194;Apply exposure policy</text>
-      <text x="56" y="134">3&#8194;Fetch cluster distances</text>
-      <text x="56" y="182">4&#8194;Predict click probability</text>
-      <text x="56" y="230">5&#8194;Compute pacing index</text>
-      <text x="56" y="278" font-weight="700">6&#8194;Decide on one campaign</text>
-      <text x="56" y="326">7&#8194;Update state</text>
-    </g>
-    <!-- inter-step arrows -->
-    <g stroke="var(--fig-line)" stroke-width="1.5">
-      <line x1="220" y1="51"  x2="220" y2="61"/>
-      <line x1="220" y1="99"  x2="220" y2="109"/>
-      <line x1="220" y1="147" x2="220" y2="157"/>
-      <line x1="220" y1="195" x2="220" y2="205"/>
-      <line x1="220" y1="243" x2="220" y2="253"/>
-      <line x1="220" y1="291" x2="220" y2="301"/>
-    </g>
-    <!-- store boxes -->
-    <g>
-      <rect x="540" y="18"  width="160" height="30" rx="14" fill="var(--teal-soft)"/>
-      <rect x="540" y="66"  width="160" height="30" rx="14" fill="var(--teal-soft)"/>
-      <rect x="540" y="114" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
-      <rect x="540" y="162" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
-      <rect x="540" y="210" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
-    </g>
-    <g class="svglabel" text-anchor="middle">
-      <text x="620" y="37">MATCH TABLE</text>
-      <text x="620" y="85">RESPONSE TABLE</text>
-      <text x="620" y="133">CLUSTER TABLE</text>
-      <text x="620" y="181">MODEL TABLE</text>
-      <text x="620" y="229">STATUS TABLE</text>
-    </g>
-    <!-- reads (store -> step), teal -->
-    <g stroke="var(--teal)" stroke-width="1.8">
-      <line x1="538" y1="33"  x2="406" y2="33"  marker-end="url(#arrT)"/>
-      <line x1="538" y1="81"  x2="406" y2="81"  marker-end="url(#arrT)"/>
-      <line x1="538" y1="129" x2="406" y2="129" marker-end="url(#arrT)"/>
-      <line x1="538" y1="177" x2="406" y2="177" marker-end="url(#arrT)"/>
-      <line x1="538" y1="225" x2="406" y2="225" marker-end="url(#arrT)"/>
-    </g>
-    <!-- writes (step 7 -> status + response), accent -->
-    <g stroke="var(--accent)" stroke-width="1.8" fill="none">
-      <path d="M 406 321 C 480 321, 500 250, 536 232" marker-end="url(#arrW)"/>
-      <path d="M 406 330 C 520 330, 528 120, 536 90" marker-end="url(#arrW)"/>
-    </g>
-    <text x="470" y="356" class="svglabel">WRITES</text>
-    <line x1="440" y1="352" x2="462" y2="352" stroke="var(--accent)" stroke-width="1.8"/>
-    <text x="560" y="356" class="svglabel">READS</text>
-    <line x1="530" y1="352" x2="552" y2="352" stroke="var(--teal)" stroke-width="1.8"/>
-  </svg>
-  </div>
-  <figcaption><span class="figno">Figure 3.</span> The seven-step decision path and its data dependencies. Steps 1&ndash;5 each read one pre-computed or live table; step 6 is pure arithmetic over the candidates; step 7 writes the served impression back into the status and response tables, which is also the record that feeds the next offline refinement cycle.</figcaption>
-</figure>
-
-<h3>6.2 Click prediction by soft membership</h3>
-<p>Suppose the event context is <em>Monday, 14:00, Sport</em> and the subscriber sits at weight 0.2 to cluster L1 and 0.8 to cluster L2 (weights derived from the stored distances). The model table gives campaign C1&rsquo;s historical rates in the matching context: 40 clicks per 8,000 impressions in L1 and 60 per 10,000 in L2. The prediction is the weighted blend:</p>
-<div class="formula">p(click | C1)  =  0.2 &middot; (40 / 8,000)  +  0.8 &middot; (60 / 10,000)  =  0.0058</div>
-<p>Because the subscriber borrows from every cluster they resemble, the estimate is stable even for subscribers with thin personal histories, and it is computed from two table rows and four multiplications.</p>
-
-<h3>6.3 Pacing: planned versus actual</h3>
-<p>The plan is a trajectory, not just a total. If a campaign is one third of the way through its flight in a given cluster, it should have received roughly one third of its planned impressions there. The engine aggregates this across the clusters where the campaign runs:</p>
-<div class="tablewrap">
-<table>
-  <thead><tr><th>Cluster</th><th>Flight elapsed</th><th>Planned by now</th><th>Actual</th></tr></thead>
-  <tbody>
-    <tr><td class="mono">L1</td><td class="num">33%</td><td class="num">8,000 &times; 0.33 = 2,640</td><td class="num">2,000</td></tr>
-    <tr><td class="mono">L2</td><td class="num">50%</td><td class="num">10,000 &times; 0.50 = 5,000</td><td class="num">5,100</td></tr>
-    <tr><td><strong>Total</strong></td><td></td><td class="num"><strong>7,640</strong></td><td class="num"><strong>7,100</strong></td></tr>
-  </tbody>
-</table>
-</div>
-<div class="formula">performance index  =  actual / planned-by-now  =  7,100 / 7,640  &asymp;  93%</div>
-
-<figure>
-  <div class="figpanel">
-  <svg viewBox="0 0 720 280" role="img" aria-label="Planned versus actual cumulative delivery over a campaign flight">
-    <!-- axes -->
-    <line x1="80" y1="240" x2="690" y2="240" stroke="var(--fig-line)" stroke-width="1.5"/>
-    <line x1="80" y1="240" x2="80" y2="40" stroke="var(--fig-line)" stroke-width="1.5"/>
-    <g class="svgnum">
-      <text x="80" y="260" text-anchor="middle">0%</text>
-      <text x="380" y="260" text-anchor="middle">50%</text>
-      <text x="680" y="260" text-anchor="middle">100%</text>
-    </g>
-    <text x="385" y="278" text-anchor="middle" class="svglabel">FLIGHT ELAPSED</text>
-    <text x="30" y="140" text-anchor="middle" class="svglabel" transform="rotate(-90 30 140)">CUMULATIVE DELIVERY</text>
-    <!-- planned straight line -->
-    <line x1="80" y1="240" x2="680" y2="60" stroke="var(--teal)" stroke-width="2.5"/>
-    <!-- actual, drifting below then recovering -->
-    <polyline points="80,240 200,208 320,182 440,158 560,122 680,84" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
-    <!-- 'now' marker at 60% -->
-    <line x1="440" y1="245" x2="440" y2="50" stroke="var(--rule)" stroke-dasharray="4 5"/>
-    <text x="440" y="42" text-anchor="middle" class="svglabel">NOW</text>
-    <circle cx="440" cy="132" r="4.5" fill="var(--teal)"/>
-    <circle cx="440" cy="158" r="4.5" fill="var(--accent)"/>
-    <line x1="452" y1="132" x2="452" y2="158" stroke="var(--ink-soft)" stroke-width="1.5"/>
-    <text x="462" y="150" class="svgnum">index &asymp; 93% &rarr; favor this campaign</text>
-    <!-- legend -->
-    <line x1="90" y1="60" x2="118" y2="60" stroke="var(--teal)" stroke-width="2.5"/>
-    <text x="126" y="64" class="svgnum">planned trajectory</text>
-    <line x1="90" y1="82" x2="118" y2="82" stroke="var(--accent)" stroke-width="2.5"/>
-    <text x="126" y="86" class="svgnum">actual delivery</text>
-  </svg>
-  </div>
-  <figcaption><span class="figno">Figure 4.</span> Pacing as trajectory tracking. The plan implies a cumulative delivery path; actual delivery drifts below it, the performance index measures the gap at the current moment, and the decision rule favors the lagging campaign on suitable impressions until the curves reconverge.</figcaption>
-</figure>
-<p>An index near 100% means the campaign is on plan. Far below a threshold (say 50%), the campaign is critically underserved and jumps the queue (step&nbsp;6); far above another (say 120%), it is overserved and stands aside. Between the thresholds, campaigns compete on the same per-impression value the plan optimizes, expected revenue = impression price + click price &times; P(click):</p>
-<div class="tablewrap">
-<table>
-  <thead><tr><th>Campaign</th><th>Impression price</th><th>Click price</th><th>Perf. index</th><th>P(click)</th><th>Expected revenue</th></tr></thead>
-  <tbody>
-    <tr><td class="mono">C1</td><td class="num">$0.10</td><td class="num">$1.00</td><td class="num">55%</td><td class="num">0.01</td><td class="num">$0.110</td></tr>
-    <tr><td class="mono">C2</td><td class="num">$0.10</td><td class="num">$0.80</td><td class="num">91%</td><td class="num">0.03</td><td class="num">$0.124</td></tr>
-    <tr><td class="mono">C3</td><td class="num">$0.10</td><td class="num">$1.50</td><td class="num">96%</td><td class="num">0.02</td><td class="num">$0.130</td></tr>
-    <tr><td class="mono">C4</td><td class="num">$0.10</td><td class="num">$1.00</td><td class="num">128%</td><td class="num">0.07</td><td class="num">$0.170</td></tr>
-  </tbody>
-</table>
-</div>
-<p>C4 carries the greatest expected revenue but sits at 128% of plan, past the overserved threshold, so it is dropped; C1 at 55% is behind plan but above the critical threshold, so it earns no override. Among the remaining candidates the engine serves C3, the greatest expected revenue for this impression. The pacing mechanism is what lets a static offline plan survive contact with real, noisy traffic: the plan sets the destination, and the index steers thousands of small per-impression corrections toward it. Deviations that pacing cannot absorb (a traffic forecast that proves wrong, a campaign that outperforms its category prior) are exactly what the feedback loop carries back into the next planning cycle.</p>
-
-<h2><span class="secno">7</span>Simulation: planned allocation versus greedy serving</h2>
-<p>The four-subscriber example of Section&nbsp;3 proves the mechanism exists; a Monte-Carlo simulation quantifies it at realistic scale. Each replication generates a synthetic market: 60 segments with lognormal traffic (about 200,000 impression opportunities), 25 campaigns whose quotas sell 80% of expected inventory, per-impression prices drawn uniformly on [$0.05,&nbsp;$0.30] and per-click prices on [$0.50,&nbsp;$3.00], and click probabilities from a campaign-audience affinity model (each campaign genuinely fits some audiences better than others, with rates spanning 0.1%&ndash;8%). Each campaign is eligible, by targeting, on roughly 60% of segments.</p>
-<p>Two policies then serve the <em>identical</em> event stream under identical quotas, prices, probabilities, and targeting. The <strong>greedy</strong> policy is the conventional per-event rule: serve the eligible, quota-remaining campaign with the highest immediate expected revenue. The <strong>planned</strong> policy solves the linear program of Section&nbsp;4 offline on the traffic forecast, then serves each event by drawing down the planned allocation, falling back to greedy where the plan is locally exhausted. The plan never sees the realized traffic; events are drawn randomly around the forecast, so the planned policy faces genuine forecast error. A third quantity, the <strong>hindsight bound</strong>, is the offline optimum computed on the traffic that actually occurred; no online policy can exceed it.</p>
+<h2><span class="secno">7</span>Simulation as calibration</h2>
+<p>Before real logs, a fully synthetic market calibrates the harness where ground truth is known. The four-subscriber example of Section&nbsp;2 proves the mechanism exists; a Monte-Carlo simulation quantifies it at realistic scale. Each replication generates a synthetic market: 60 segments with lognormal traffic (about 200,000 impression opportunities), 25 campaigns whose quotas sell 80% of expected inventory, per-impression prices drawn uniformly on [$0.05,&nbsp;$0.30] and per-click prices on [$0.50,&nbsp;$3.00], and click probabilities from a campaign-audience affinity model (each campaign genuinely fits some audiences better than others, with rates spanning 0.1%&ndash;8%). Each campaign is eligible, by targeting, on roughly 60% of segments.</p>
+<p>Two policies then serve the <em>identical</em> event stream under identical quotas, prices, probabilities, and targeting. The <strong>greedy</strong> policy is the conventional per-event rule: serve the eligible, quota-remaining campaign with the highest immediate expected revenue. The <strong>planned</strong> policy solves the linear program of Section&nbsp;3 offline on the traffic forecast, then serves each event by drawing down the planned allocation, falling back to greedy where the plan is locally exhausted. The plan never sees the realized traffic; events are drawn randomly around the forecast, so the planned policy faces genuine forecast error. A third quantity, the <strong>hindsight bound</strong>, is the offline optimum computed on the traffic that actually occurred; no online policy can exceed it.</p>
 <div class="tablewrap">
 <table>
   <thead><tr><th>Measure (20 replications)</th><th>Mean</th><th>Range</th></tr></thead>
@@ -775,58 +540,306 @@ subject to  &Sigma;<sub>c</sub> x<sub>c,s</sub>  &le;  H<sub>s</sub>        (seg
 </figure>
 
 <p>Both policies fill every quota, so the entire gap is <em>pairing quality</em>: the same impressions, sold to the same campaigns, assigned to different audiences. This also explains why the click lift (33%) exceeds the revenue lift (6.5%): per-impression fees are earned identically by both policies once quotas fill, so planning&rsquo;s advantage is concentrated wholly in the click-priced component of revenue. In markets weighted further toward performance pricing, the revenue gap widens toward the click gap.</p>
-<p>The simulation carries its own controls. Both policies are verified against the hindsight bound in every replication. On control instances where all campaigns share identical click probabilities, so pairing cannot matter, the measured lift is 0.000%, confirming that the gap measures allocation quality and not an artifact of the harness. And the planned policy&rsquo;s 93.8% of a bound computed with perfect hindsight shows that forecast noise costs the plan only a few points, the residual that Section&nbsp;6&rsquo;s pacing mechanism and the refinement loop exist to absorb.</p>
+<p>The simulation carries its own controls. Both policies are verified against the hindsight bound in every replication. On control instances where all campaigns share identical click probabilities, so pairing cannot matter, the measured lift is 0.000%, confirming that the gap measures allocation quality and not an artifact of the harness. And the planned policy&rsquo;s 93.8% of a bound computed with perfect hindsight shows that forecast noise costs the plan only a few points, the residual that Section&nbsp;8.2&rsquo;s pacing mechanism and the refinement loop exist to absorb.</p>
 
-<h2><span class="secno">8</span>Evidence from real logs</h2>
-<p>The simulation controls everything; real logs control nothing, which is the point. This section replays the public Taobao display-advertising dataset [2,&nbsp;3]: 26.6 million impressions over 8 days in May 2017, roughly 1.1 million users with declared demographics, and explicit campaign identifiers, the closest public analog to an operator's data. The market is reconstructed from the log itself: campaigns are the top 100 by planning-window volume, each campaign&rsquo;s quota is the number of impressions it actually received in the serving window, and policies re-pair the identical impression stream, so the counterfactual is <em>the same inventory, re-allocated</em>.</p>
+<h2><span class="secno">8</span>A reference serving architecture</h2>
+<p>This section describes the deployment design that motivated the study: an operator-grade two-stage architecture that compiles the allocation plan into constant-time lookup serving. It is a design sketch: the experiments of Sections&nbsp;4&ndash;6 validate the allocation core (plan versus serving policy at segment granularity), not the per-subscriber machinery described here.</p>
+<p>The design targets the operator&rsquo;s data position. A web ad network observes a browser: a resettable, unverified cookie, activity on the sites it instruments, and demographics inferred by guesswork. A network operator observes a customer: a verified identity anchored in a billing account, declared attributes, financial signals, and, because all browsing crosses the gateway, complete response attribution joined under one stable identifier.</p>
 
-<h3>8.1 Honest counterfactual scoring</h3>
-<p>Replay evaluation has a trap. If the table of click probabilities that the planner optimizes also scores the outcome, both the plan and the bound harvest the table&rsquo;s estimation noise: in our first run the measured lift was +8.9% while the mean assignment value exceeded the best campaign&rsquo;s true click rate, an impossibility. The design that survives this is <strong>dual-model scoring</strong>: policies plan and serve using only planning-window estimates, while all values, including the hindsight bound, are scored under an independent table fitted on the serving window. A uniform-probability control run then yields exactly 0.0% lift with every policy at exactly 100% of the bound, confirming the harness measures pairing quality and nothing else. Evaluation is <strong>walk-forward</strong>: for each of five serving days, the plan is fitted on all prior days and scored on that day alone. The adaptive baseline is fully specified: a dual-price pacing policy that serves the quota-remaining campaign maximizing p&#770;<sub>cs</sub>&nbsp;&minus;&nbsp;&mu;<sub>c</sub>, updating &mu;<sub>c</sub>&nbsp;&larr;&nbsp;&mu;<sub>c</sub>&nbsp;+&nbsp;&eta;(served<sub>c</sub>/Q<sub>c</sub>&nbsp;&minus;&nbsp;t/T) after each impression with &eta; set to half the global click rate; it consults no plan. Reported errors are the scoring table&rsquo;s closed-form binomial variance propagated through each comparison&rsquo;s assignment difference; the across-fold spread of the five per-fold lifts independently reproduces the same standard error, and the all-folds-positive sign pattern supports the parametric statement distribution-free. The uniform control defends the harness; a further check defends the scorer itself: standardizing the scoring table along the strongest observable within-cell covariate the segmentation does not use (each user&rsquo;s own training-window click propensity) shifts the headline lifts by at most +0.3pp, upward, so observable within-cell selection in the logged exposures does not account for the measured gains. Support is also measured directly: only 6% of the planned policy&rsquo;s assignment mass (and 5% of the re-paired mass) lands in cells with fewer than 100 logged serving-window impressions, and scoring those thin cells with a pooled campaign-level fallback moves the headline from +3.46% to +2.99%; the counterfactual does not rest on extrapolated cells. (Forcing the fallback on all cells below 1,000 impressions, 78% of the mass, collapses the lift toward zero, as it must: a campaign-constant scorer deletes the interaction dimension, and under fixed quotas every assignment then scores equally, the same argument as the uniform control.) The replay isolates the architecture&rsquo;s allocation core, plan against serving policy at segment granularity: every campaign is eligible on every segment, and the per-subscriber serving components of Section&nbsp;6 (soft-membership blending, frequency caps, threshold pacing) operate below this granularity and are not exercised by these experiments.</p>
-
-<h3>8.2 Segment where the interaction persists</h3>
-<p>Allocation under fixed quotas can exploit exactly one thing: campaign-by-segment <em>interaction</em> in click probability that persists from the planning window to the serving window. Campaign main effects persist strongly (week-over-week correlation 0.81) but fixed quotas neutralize them; segment main effects are fixed by supply. Measuring the persistence of double-centered interaction residuals per candidate axis therefore predicts, in advance, which segmentations can pay:</p>
 <div class="tablewrap">
 <table>
-  <thead><tr><th>Segmentation axis</th><th>Interaction persistence (r)</th><th>Interaction size beyond noise</th></tr></thead>
+  <thead><tr><th>Dimension</th><th>Web ad network</th><th>Network operator</th></tr></thead>
   <tbody>
-    <tr><td>Activity tier (usage volume)</td><td class="num">0.48&ndash;0.54</td><td class="num">~1pp on a 5.5pp base</td></tr>
-    <tr><td>Gender &times; age</td><td class="num">0.28</td><td class="num">~0.5pp</td></tr>
-    <tr><td>Hour &times; position slot</td><td class="num">0.08</td><td class="num">~0</td></tr>
+    <tr><td>Identity</td><td>Cookie or device fingerprint; resettable, unverified</td><td>Subscriber account; stable, verified, one per person</td></tr>
+    <tr><td>Demographics</td><td>Inferred from behavior</td><td>Declared at subscription: age, gender, address</td></tr>
+    <tr><td>Financial signal</td><td>None or modeled</td><td>Plan, spend level, content purchase history</td></tr>
+    <tr><td>Location</td><td>Coarse, via IP</td><td>Network-observed, continuous</td></tr>
+    <tr><td>Browsing coverage</td><td>Sites the network instruments</td><td>All traffic through the gateway</td></tr>
+    <tr><td>Exposure control</td><td>Per-site frequency caps</td><td>Global caps across all inventory, per subscriber</td></tr>
   </tbody>
 </table>
 </div>
-<p>The persistence table fixes the evaluation configuration <em>before</em> any replay is scored: the activity axis persists most strongly, and its measured persistence improves from four tiers to eight (r&nbsp;=&nbsp;0.48 to 0.54), so the pre-committed configuration for the 100-campaign market is eight activity tiers. Both headline comparisons are reported for that single configuration; the remaining rows are the ablation that tests the rule.</p>
+
+<p>The vantage point carries obligations that shape the design. Subscriber data is usable for advertising only within a consent and data-protection framework: profiling requires a lawful basis and per-subscriber opt-out under regimes such as the GDPR and ePrivacy rules, and gateway-observed browsing is subject to purpose limitation. The architecture is built for data minimization under those constraints: raw attributes and browsing records are confined to the offline stage, the serving path receives only anonymous cluster distances and campaign eligibility lists, and every online decision reads aggregate tables rather than individual histories. Segment coarseness is itself a privacy parameter: the segments that carry allocation value in Section&nbsp;5 are a handful of aggregate behavior tiers, not individual dossiers. Not every subscriber has a profile at all: prepaid subscribers may be anonymous, which is why the clustering machinery supports membership computed from response behavior alone (Section&nbsp;8.1.3).</p>
+
+<h3>8.1 The offline stage: learning the inputs to the plan</h3>
+<p>The allocation program needs two inputs that do not exist in raw data: predicted traffic per segment (<em>H<sub>s</sub></em>) and click probabilities per campaign-segment pair (<em>p<sub>c,s</sub></em>). The offline analytics stage builds both from event history, under three modeling assumptions, each holding with high probability rather than certainty:</p>
+<ol>
+  <li>The distribution of (context, profile) pairs observed in the past will recur in the future.</li>
+  <li>Subscribers who responded similarly under similar conditions will continue to respond similarly.</li>
+  <li>Subscribers who respond similarly share something observable in their profiles or histories.</li>
+</ol>
+<p>Assumption 1 justifies forecasting traffic from history; assumptions 2 and 3 justify pooling sparse per-subscriber click data into clusters that have enough volume to estimate probabilities reliably.</p>
+
+<h3>8.1.1 Response records</h3>
+<p>The atomic unit of evidence is an ad response record: who saw what, in what context, and whether they clicked.</p>
 <div class="tablewrap">
 <table>
-  <thead><tr><th>Segments</th><th>Count</th><th>Planned vs greedy</th><th>z</th><th>Planned vs adaptive pacing</th><th>z</th></tr></thead>
+  <thead><tr><th>Time of day</th><th>Day of week</th><th>Content category</th><th>Campaign</th><th>Click</th></tr></thead>
   <tbody>
-    <tr><td><strong>Activity, 8 tiers (pre-committed)</strong></td><td class="num">8</td><td class="num"><strong>+3.46% &plusmn; 0.69pp</strong></td><td class="num">+5.0</td><td class="num"><strong>+0.92% &plusmn; 0.47pp</strong></td><td class="num">+2.0</td></tr>
-    <tr><td>Activity, 4 tiers</td><td class="num">4</td><td class="num">+2.51% &plusmn; 0.50pp</td><td class="num">+5.0</td><td class="num">+1.15% &plusmn; 0.31pp</td><td class="num">+3.7</td></tr>
-    <tr><td>Tier &times; demographics</td><td class="num">168</td><td class="num">+1.93% &plusmn; 0.91pp</td><td class="num">+2.1</td><td class="num">+0.40%</td><td class="num">+0.6</td></tr>
-    <tr><td>Demographics only</td><td class="num">48</td><td class="num">&minus;0.20% &plusmn; 0.61pp</td><td class="num">&minus;0.3</td><td class="num">+0.46%</td><td class="num">+1.1</td></tr>
+    <tr><td class="mono">11:23</td><td>Monday</td><td>News</td><td class="mono">C1 (active)</td><td class="num">0</td></tr>
+    <tr><td class="mono">14:15</td><td>Monday</td><td>Sport</td><td class="mono">C2 (active)</td><td class="num">1</td></tr>
+    <tr><td class="mono">18:14</td><td>Sunday</td><td>Sport</td><td class="mono">C4 (past)</td><td class="num">1</td></tr>
   </tbody>
 </table>
 </div>
-<p>Per-fold lifts for the pre-committed configuration, so signs are visible rather than summarized: against greedy +5.2, +4.2, +2.6, +3.2, +2.2 (five of five positive; one-sided sign-test p&nbsp;=&nbsp;0.03 independent of the parametric error model); against adaptive pacing +2.2, +1.7, +1.9, &minus;0.5, &minus;0.9 (three of five positive, consistent with its z&nbsp;=&nbsp;2.0).</p>
-<p>Three conclusions. First, the architecture&rsquo;s claim holds on real inventory: on the pre-committed configuration the plan beats greedy serving by 3.5% expected clicks (positive in every fold) and beats an adaptive dual-price pacing policy in the family of online allocation methods [5], the strong online baseline, by 0.9% (z&nbsp;=&nbsp;2.0; the four-tier ablation row separates from pacing at z&nbsp;=&nbsp;3.7), while serving from precomputed tables. Second, <strong>persistence, not granularity, carries the value</strong>: eight segments on the persistent axis beat 168 finer ones, because finer cells add estimation noise and re-pairing churn faster than they add exploitable signal; and the right granularity scales with per-cell data density (in a 500-campaign market, four tiers beat eight). Third, the persistence measurement itself is the deployable design rule: before segmenting, correlate double-centered interaction residuals across adjacent planning windows, and segment only on axes that persist. The rule generalizes: on a second public log (Avazu, 40.4M mobile impressions [4]), the same measurement ranks page category as the most persistent axis (r&nbsp;=&nbsp;0.88) and, in both datasets, time-of-day as the least, confirming that time belongs to the pacing loop, not to segmentation. Avazu&rsquo;s own replay, in contrast, exposes a boundary rather than a lift: its ad portfolio and delivery mix turn over within a day, faster than any daily plan, which is the stability condition Section&nbsp;11 states. With that rule applied, the replayed policies capture 85&ndash;91% of the hindsight bound; the residual is the estimation noise and week-over-week drift that the pacing loop of Section&nbsp;6 exists to absorb.</p>
+<p>Records are grouped per subscriber and joined with the profile (age, gender, location, income band, purchase indicators) where one is available. Past campaigns matter as much as active ones: a subscriber&rsquo;s reaction to a finished campaign is evidence about how they will react to similar future ones.</p>
 
-<h3>8.3 Stress tests and the strongest baseline</h3>
-<p>Two follow-up experiments probe the market reconstruction itself, both on the pre-committed configuration. First, <strong>over-subscription stress</strong>: quotas set to each campaign&rsquo;s realized delivery make the market exactly feasible, so we scale all quotas 25% and 50% above deliverable supply, forcing genuine contention (aggregate fill drops to 80% and 67%, and policies choose which campaigns under-deliver). The plan&rsquo;s edge over greedy narrows as quotas slacken, +1.6% (z&nbsp;=&nbsp;2.2) at 125% and +0.3% at 150%, which is the mechanical consequence of contention: with slack quotas, per-event value-ordering approaches per-segment optimality. The adaptive pacing policy moves the other way, degrading sharply under contention (&minus;3.4% and &minus;6.4% against greedy), so the plan&rsquo;s advantage over it multiplies to <strong>+5.1% (z&nbsp;=&nbsp;6.4) and +7.1% (z&nbsp;=&nbsp;8.0)</strong>. The over-subscribed regime that motivates the paper is exactly where compiled planning is most valuable relative to online adaptation.</p>
-<p>Second, the <strong>strongest competitors</strong>, which turn out to be two forms of the same thing. A periodically re-solved plan (the same LP re-solved on remaining quotas and prorated remaining supply every 20,000 impressions) beats the static plan by +0.9% (z&nbsp;=&nbsp;2.8). A properly strengthened adaptive baseline, its dual prices warm-started from the plan LP&rsquo;s own quota shadow prices and its step size tuned by simulated serving on the last planning day, beats the static plan by +1.1% (z&nbsp;=&nbsp;2.5) and greedy by +4.6% (z&nbsp;=&nbsp;8.3). The two are statistically indistinguishable, and neither is plan-free: one re-solves the plan, the other tracks the plan&rsquo;s prices. The full ordering, plan-informed feedback execution &gt; static plan &gt; plan-blind adaptive duals &gt; greedy, sharpens the architecture&rsquo;s claim: the value is created by the offline optimization, and serving should <em>track</em> that optimization with feedback (re-solve on the pacing cadence, or follow its dual prices) rather than draw it down rigidly. That is Section&nbsp;6&rsquo;s pacing loop made quantitative.</p>
+<h3>8.1.2 Proximity and clustering</h3>
+<p>Subscribers are clustered by a weighted distance that mixes profile similarity with response-pattern similarity: response to the same campaigns (active and past) and to similar campaigns. Each attribute contributes its own distance component:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Attribute</th><th>Distance component</th></tr></thead>
+  <tbody>
+    <tr><td>Age</td><td>Absolute difference</td></tr>
+    <tr><td>Gender</td><td>Fixed penalty if different</td></tr>
+    <tr><td>Campaign affinity</td><td>By campaign category; fixed penalty if different</td></tr>
+    <tr><td>Day of week</td><td>Absolute difference, circular</td></tr>
+    <tr><td>Location (x,&nbsp;y)</td><td>Straight-line distance</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Membership is deliberately <strong>soft</strong>. A subscriber is not filed into one cluster; they carry a pre-computed distance to each nearby cluster. A 35-year-old married streaming subscriber in a large city may sit at distance 0.8 from the &ldquo;metropolitan professionals&rdquo; cluster and 0.1 from &ldquo;music lovers&rdquo;; a 22-year-old gaming subscriber in the same city sits close to &ldquo;gamers&rdquo; and &ldquo;music lovers&rdquo; instead. These distances become interpolation weights at serving time (Section&nbsp;8.2), so predictions blend the behavior of every cluster the subscriber resembles.</p>
+
+<h3>8.1.3 Cluster representation and click estimation</h3>
+<p>Each cluster is summarized by two compact structures. Its <em>context slots</em> describe when and where the cluster generates traffic, with predicted hit counts; this is the supply side <em>H<sub>s</sub></em>. Its <em>click statistics</em> record impressions and clicks per campaign per context slot, the raw material for <em>p<sub>c,s</sub></em>:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Context slot</th><th>Time of day</th><th>Day of week</th><th>Category</th><th>Predicted hits</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">CS1</td><td class="mono">10:00&ndash;12:00</td><td>Mon&ndash;Tue</td><td>News, Sport</td><td class="num">3,000</td></tr>
+    <tr><td class="mono">CS2</td><td class="mono">11:00&ndash;17:00</td><td>Sun</td><td>Sport</td><td class="num">4,000</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Campaign</th><th>Context slot</th><th>Impressions</th><th>Clicks</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">C1</td><td class="mono">CS1</td><td class="num">1,000</td><td class="num">3</td></tr>
+    <tr><td class="mono">C1</td><td class="mono">CS2</td><td class="num">2,000</td><td class="num">2</td></tr>
+    <tr><td class="mono">C2</td><td class="mono">CS1</td><td class="num">1,000</td><td class="num">7</td></tr>
+  </tbody>
+</table>
+</div>
+<p>For a brand-new campaign with no history of its own, probabilities are borrowed from the most similar past or active campaigns in the same category, the same pooling idea applied across campaigns instead of across subscribers. Where the profile itself is missing (anonymous or prepaid subscribers), distance to clusters is computed from response history alone, and the subscriber inherits the response statistics of the cluster they behave like. The design degrades gracefully as data thins out: per-subscriber evidence backs off to cluster evidence, and per-campaign evidence backs off to category evidence.</p>
+
+<h3>8.1.4 Compiling the plan into lookup tables</h3>
+<p>Solving the allocation program yields planned impression counts per (campaign, cluster, context slot). Everything the online server needs is then flattened into three lookup structures, so that no clustering, no distance computation, and no optimization happens on the serving path:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Structure</th><th>Keyed by</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Model table</strong></td><td class="mono">cluster &times; campaign</td><td>Targeted time slots and content categories as bit masks; planned impressions; expected clicks</td></tr>
+    <tr><td><strong>Match table</strong></td><td class="mono">subscriber</td><td>Campaigns this subscriber is eligible for under targeting rules</td></tr>
+    <tr><td><strong>Cluster table</strong></td><td class="mono">subscriber</td><td>Distance to each nearby cluster (the soft-membership weights)</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Time and content targeting are encoded as fixed-width bit masks, 168 weekly hour-slots and up to 256 content categories, so an eligibility test at serving time is a bitwise AND rather than a rule evaluation. A model table row reads, in full: <em>&ldquo;cluster L1, campaign C1, time mask 0100&#8230;, content mask 1111&#8230;, 10,000 planned impressions, 450 expected clicks.&rdquo;</em> That one row carries targeting, allocation, and the performance baseline the online stage will pace against.</p>
+
+<h3>8.2 The online stage: executing the plan in real time</h3>
+<p>At serving time an impression event arrives carrying a subscriber identifier and a context (time, day, content category of the page being viewed). The decision engine must return a single campaign within the latency budget of a page load. It consults the three model structures plus two live state tables: a <strong>status table</strong> mirroring the model table but accumulating <em>actual</em> impressions and clicks, and a <strong>response table</strong> holding each subscriber&rsquo;s recent exposure records.</p>
+
+<figure>
+  <div class="figpanel">
+  <svg viewBox="0 0 720 240" role="img" aria-label="Closed loop between offline planning and online serving">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line)"/>
+      </marker>
+      <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+      </marker>
+    </defs>
+    <!-- offline box -->
+    <rect x="40" y="60" width="220" height="120" rx="8" fill="none" stroke="var(--teal)" stroke-width="2"/>
+    <text x="150" y="98" text-anchor="middle" class="svgtitle">Offline analytics</text>
+    <text x="150" y="122" text-anchor="middle" class="svgnum">cluster &middot; predict &middot; plan</text>
+    <text x="150" y="142" text-anchor="middle" class="svgnum">(periodic refinement)</text>
+    <!-- online box -->
+    <rect x="460" y="60" width="220" height="120" rx="8" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    <text x="570" y="98" text-anchor="middle" class="svgtitle">Online decision</text>
+    <text x="570" y="122" text-anchor="middle" class="svgnum">per impression, real time</text>
+    <text x="570" y="142" text-anchor="middle" class="svgnum">(lookup + pacing)</text>
+    <!-- forward arrow -->
+    <line x1="260" y1="95" x2="452" y2="95" stroke="var(--fig-line)" stroke-width="2" marker-end="url(#arr)"/>
+    <text x="356" y="84" text-anchor="middle" class="svglabel">MODEL + PLAN (TABLES)</text>
+    <!-- feedback arrow -->
+    <line x1="460" y1="150" x2="268" y2="150" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrA)"/>
+    <text x="364" y="172" text-anchor="middle" class="svglabel">RESPONSE FEEDBACK</text>
+  </svg>
+  </div>
+  <figcaption><span class="figno">Figure 2.</span> The closed loop. Offline analytics compiles the model and allocation plan into lookup tables; the online engine executes them per impression and streams response records back, which the next analytics cycle uses to refine clusters, probabilities, and the plan.</figcaption>
+</figure>
+
+<h3>8.2.1 The seven-step decision</h3>
+<ol class="steps">
+  <li><b>Find eligible campaigns</b><span class="uses">match table</span> Look up the campaigns this subscriber may be shown under targeting rules.</li>
+  <li><b>Apply exposure policy</b><span class="uses">response table</span> Drop campaigns that would violate frequency rules for this subscriber, a minimum interval between exposures, a maximum number of exposures per day.</li>
+  <li><b>Fetch cluster distances</b><span class="uses">cluster table</span> Retrieve the subscriber&rsquo;s pre-computed distances to nearby clusters.</li>
+  <li><b>Predict click probability per candidate</b><span class="uses">model table</span> Blend cluster-level click rates with the soft-membership weights (Section&nbsp;8.2.2).</li>
+  <li><b>Compute pacing per candidate</b><span class="uses">status table</span> Compare actual delivery against plan, prorated to this point in the flight (Section&nbsp;8.2.3).</li>
+  <li><b>Decide</b> If any campaign is critically underserved, serve it. Otherwise drop overserved campaigns and serve the candidate with the greatest expected revenue.</li>
+  <li><b>Update state</b><span class="uses">status + response tables</span> Increment the served campaign&rsquo;s actual counters and append the exposure record, which later feeds back to analytics.</li>
+</ol>
+<p>Every step is a keyed lookup, a bit-mask test, or arithmetic over a handful of rows. The expensive work (clustering, probability estimation, optimization) was all paid for offline.</p>
+
+<figure>
+  <div class="figpanel">
+  <svg viewBox="0 0 720 372" role="img" aria-label="Seven decision steps and the tables each one reads or writes">
+    <defs>
+      <marker id="arrT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--teal)"/>
+      </marker>
+      <marker id="arrW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+      </marker>
+    </defs>
+    <!-- step boxes -->
+    <g>
+      <rect x="40" y="15"  width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="63"  width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="111" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="159" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="207" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+      <rect x="40" y="255" width="360" height="36" rx="5" fill="none" stroke="var(--teal)" stroke-width="2"/>
+      <rect x="40" y="303" width="360" height="36" rx="5" fill="none" stroke="var(--panel-edge)"/>
+    </g>
+    <g font-size="13.5">
+      <text x="56" y="38">1&#8194;Find eligible campaigns</text>
+      <text x="56" y="86">2&#8194;Apply exposure policy</text>
+      <text x="56" y="134">3&#8194;Fetch cluster distances</text>
+      <text x="56" y="182">4&#8194;Predict click probability</text>
+      <text x="56" y="230">5&#8194;Compute pacing index</text>
+      <text x="56" y="278" font-weight="700">6&#8194;Decide on one campaign</text>
+      <text x="56" y="326">7&#8194;Update state</text>
+    </g>
+    <!-- inter-step arrows -->
+    <g stroke="var(--fig-line)" stroke-width="1.5">
+      <line x1="220" y1="51"  x2="220" y2="61"/>
+      <line x1="220" y1="99"  x2="220" y2="109"/>
+      <line x1="220" y1="147" x2="220" y2="157"/>
+      <line x1="220" y1="195" x2="220" y2="205"/>
+      <line x1="220" y1="243" x2="220" y2="253"/>
+      <line x1="220" y1="291" x2="220" y2="301"/>
+    </g>
+    <!-- store boxes -->
+    <g>
+      <rect x="540" y="18"  width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+      <rect x="540" y="66"  width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+      <rect x="540" y="114" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+      <rect x="540" y="162" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+      <rect x="540" y="210" width="160" height="30" rx="14" fill="var(--teal-soft)"/>
+    </g>
+    <g class="svglabel" text-anchor="middle">
+      <text x="620" y="37">MATCH TABLE</text>
+      <text x="620" y="85">RESPONSE TABLE</text>
+      <text x="620" y="133">CLUSTER TABLE</text>
+      <text x="620" y="181">MODEL TABLE</text>
+      <text x="620" y="229">STATUS TABLE</text>
+    </g>
+    <!-- reads (store -> step), teal -->
+    <g stroke="var(--teal)" stroke-width="1.8">
+      <line x1="538" y1="33"  x2="406" y2="33"  marker-end="url(#arrT)"/>
+      <line x1="538" y1="81"  x2="406" y2="81"  marker-end="url(#arrT)"/>
+      <line x1="538" y1="129" x2="406" y2="129" marker-end="url(#arrT)"/>
+      <line x1="538" y1="177" x2="406" y2="177" marker-end="url(#arrT)"/>
+      <line x1="538" y1="225" x2="406" y2="225" marker-end="url(#arrT)"/>
+    </g>
+    <!-- writes (step 7 -> status + response), accent -->
+    <g stroke="var(--accent)" stroke-width="1.8" fill="none">
+      <path d="M 406 321 C 480 321, 500 250, 536 232" marker-end="url(#arrW)"/>
+      <path d="M 406 330 C 520 330, 528 120, 536 90" marker-end="url(#arrW)"/>
+    </g>
+    <text x="470" y="356" class="svglabel">WRITES</text>
+    <line x1="440" y1="352" x2="462" y2="352" stroke="var(--accent)" stroke-width="1.8"/>
+    <text x="560" y="356" class="svglabel">READS</text>
+    <line x1="530" y1="352" x2="552" y2="352" stroke="var(--teal)" stroke-width="1.8"/>
+  </svg>
+  </div>
+  <figcaption><span class="figno">Figure 3.</span> The seven-step decision path and its data dependencies. Steps 1&ndash;5 each read one pre-computed or live table; step 6 is pure arithmetic over the candidates; step 7 writes the served impression back into the status and response tables, which is also the record that feeds the next offline refinement cycle.</figcaption>
+</figure>
+
+<h3>8.2.2 Click prediction by soft membership</h3>
+<p>Suppose the event context is <em>Monday, 14:00, Sport</em> and the subscriber sits at weight 0.2 to cluster L1 and 0.8 to cluster L2 (weights derived from the stored distances). The model table gives campaign C1&rsquo;s historical rates in the matching context: 40 clicks per 8,000 impressions in L1 and 60 per 10,000 in L2. The prediction is the weighted blend:</p>
+<div class="formula">p(click | C1)  =  0.2 &middot; (40 / 8,000)  +  0.8 &middot; (60 / 10,000)  =  0.0058</div>
+<p>Because the subscriber borrows from every cluster they resemble, the estimate is stable even for subscribers with thin personal histories, and it is computed from two table rows and four multiplications.</p>
+
+<h3>8.2.3 Pacing: planned versus actual</h3>
+<p>The plan is a trajectory, not just a total. If a campaign is one third of the way through its flight in a given cluster, it should have received roughly one third of its planned impressions there. The engine aggregates this across the clusters where the campaign runs:</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Cluster</th><th>Flight elapsed</th><th>Planned by now</th><th>Actual</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">L1</td><td class="num">33%</td><td class="num">8,000 &times; 0.33 = 2,640</td><td class="num">2,000</td></tr>
+    <tr><td class="mono">L2</td><td class="num">50%</td><td class="num">10,000 &times; 0.50 = 5,000</td><td class="num">5,100</td></tr>
+    <tr><td><strong>Total</strong></td><td></td><td class="num"><strong>7,640</strong></td><td class="num"><strong>7,100</strong></td></tr>
+  </tbody>
+</table>
+</div>
+<div class="formula">performance index  =  actual / planned-by-now  =  7,100 / 7,640  &asymp;  93%</div>
+
+<figure>
+  <div class="figpanel">
+  <svg viewBox="0 0 720 280" role="img" aria-label="Planned versus actual cumulative delivery over a campaign flight">
+    <!-- axes -->
+    <line x1="80" y1="240" x2="690" y2="240" stroke="var(--fig-line)" stroke-width="1.5"/>
+    <line x1="80" y1="240" x2="80" y2="40" stroke="var(--fig-line)" stroke-width="1.5"/>
+    <g class="svgnum">
+      <text x="80" y="260" text-anchor="middle">0%</text>
+      <text x="380" y="260" text-anchor="middle">50%</text>
+      <text x="680" y="260" text-anchor="middle">100%</text>
+    </g>
+    <text x="385" y="278" text-anchor="middle" class="svglabel">FLIGHT ELAPSED</text>
+    <text x="30" y="140" text-anchor="middle" class="svglabel" transform="rotate(-90 30 140)">CUMULATIVE DELIVERY</text>
+    <!-- planned straight line -->
+    <line x1="80" y1="240" x2="680" y2="60" stroke="var(--teal)" stroke-width="2.5"/>
+    <!-- actual, drifting below then recovering -->
+    <polyline points="80,240 200,208 320,182 440,158 560,122 680,84" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+    <!-- 'now' marker at 60% -->
+    <line x1="440" y1="245" x2="440" y2="50" stroke="var(--rule)" stroke-dasharray="4 5"/>
+    <text x="440" y="42" text-anchor="middle" class="svglabel">NOW</text>
+    <circle cx="440" cy="132" r="4.5" fill="var(--teal)"/>
+    <circle cx="440" cy="158" r="4.5" fill="var(--accent)"/>
+    <line x1="452" y1="132" x2="452" y2="158" stroke="var(--ink-soft)" stroke-width="1.5"/>
+    <text x="462" y="150" class="svgnum">index &asymp; 93% &rarr; favor this campaign</text>
+    <!-- legend -->
+    <line x1="90" y1="60" x2="118" y2="60" stroke="var(--teal)" stroke-width="2.5"/>
+    <text x="126" y="64" class="svgnum">planned trajectory</text>
+    <line x1="90" y1="82" x2="118" y2="82" stroke="var(--accent)" stroke-width="2.5"/>
+    <text x="126" y="86" class="svgnum">actual delivery</text>
+  </svg>
+  </div>
+  <figcaption><span class="figno">Figure 4.</span> Pacing as trajectory tracking. The plan implies a cumulative delivery path; actual delivery drifts below it, the performance index measures the gap at the current moment, and the decision rule favors the lagging campaign on suitable impressions until the curves reconverge.</figcaption>
+</figure>
+<p>An index near 100% means the campaign is on plan. Far below a threshold (say 50%), the campaign is critically underserved and jumps the queue (step&nbsp;6); far above another (say 120%), it is overserved and stands aside. Between the thresholds, campaigns compete on the same per-impression value the plan optimizes, expected revenue = impression price + click price &times; P(click):</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Campaign</th><th>Impression price</th><th>Click price</th><th>Perf. index</th><th>P(click)</th><th>Expected revenue</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">C1</td><td class="num">$0.10</td><td class="num">$1.00</td><td class="num">55%</td><td class="num">0.01</td><td class="num">$0.110</td></tr>
+    <tr><td class="mono">C2</td><td class="num">$0.10</td><td class="num">$0.80</td><td class="num">91%</td><td class="num">0.03</td><td class="num">$0.124</td></tr>
+    <tr><td class="mono">C3</td><td class="num">$0.10</td><td class="num">$1.50</td><td class="num">96%</td><td class="num">0.02</td><td class="num">$0.130</td></tr>
+    <tr><td class="mono">C4</td><td class="num">$0.10</td><td class="num">$1.00</td><td class="num">128%</td><td class="num">0.07</td><td class="num">$0.170</td></tr>
+  </tbody>
+</table>
+</div>
+<p>C4 carries the greatest expected revenue but sits at 128% of plan, past the overserved threshold, so it is dropped; C1 at 55% is behind plan but above the critical threshold, so it earns no override. Among the remaining candidates the engine serves C3, the greatest expected revenue for this impression. The pacing mechanism is what lets a static offline plan survive contact with real, noisy traffic: the plan sets the destination, and the index steers thousands of small per-impression corrections toward it. Deviations that pacing cannot absorb (a traffic forecast that proves wrong, a campaign that outperforms its category prior) are exactly what the feedback loop carries back into the next planning cycle.</p>
 
 <h2><span class="secno">9</span>Related work</h2>
 <p><strong>Online matching and allocation.</strong> The theoretical core of ad allocation is online bipartite matching, from the optimal 1&nbsp;&minus;&nbsp;1/e algorithm of Karp, Vazirani, and Vazirani [6] through its budgeted AdWords generalization [7]. Under stochastic arrivals, the random-permutation model admits near-optimal algorithms that learn dual prices from an initial sample [8], and primal-dual training on forecast samples extends to display allocation [9] and general online linear programming [10]. This line of work supplies the adaptive dual-price policy we use as the strong online baseline; our contribution is orthogonal: an empirical account, on public logs, of when a compiled offline plan beats such adaptive methods and what segmentation makes the plan's advantage real.</p>
-<p><strong>Guaranteed display allocation.</strong> Closest in spirit are systems that precompute compact allocation plans for guaranteed-delivery display advertising: optimal online assignment with forecasts [11] and the SHALE algorithm [12] both compute offline parameters that a lightweight online server executes, as our architecture does. Those works optimize the plan's representation and solve time; we address the two questions they leave open in deployment: which audience segmentation gives the plan exploitable, durable structure (the persistence rule of Section&nbsp;8), and how to measure a plan's realized value against strong baselines without an online experiment. Budget-pacing controllers [13,&nbsp;14] are the production embodiment of the adaptive alternative and correspond to the pacing loop our serving stage carries in Section&nbsp;6.</p>
-<p><strong>Click prediction and offline evaluation.</strong> Industrial click-through-rate modeling ranges from large-scale logistic regression [15] and field-aware factorization machines [16] to attention architectures over user behavior [17,&nbsp;3]. Our click model is deliberately simpler, hierarchical empirical rates with soft cluster membership, because the architecture consumes any calibrated estimator and the allocation question is about the pairing structure, not the estimator frontier. For evaluation, replay methods [18], counterfactual reasoning in computational advertising [19], and offline A/B testing [20] establish the off-policy toolbox; the dual-model scoring of Section&nbsp;8.1 applies the same discipline to allocation policies specifically, where we show single-model replay inflates lift through the plan&rsquo;s own estimation noise.</p>
+<p><strong>Guaranteed display allocation.</strong> Closest in spirit are systems that precompute compact allocation plans for guaranteed-delivery display advertising: optimal online assignment with forecasts [11] and the SHALE algorithm [12] both compute offline parameters that a lightweight online server executes, as our architecture does. Those works optimize the plan's representation and solve time; we address the two questions they leave open in deployment: which audience segmentation gives the plan exploitable, durable structure (the persistence rule of Section&nbsp;5), and how to measure a plan's realized value against strong baselines without an online experiment. Budget-pacing controllers [13,&nbsp;14] are the production embodiment of the adaptive alternative and correspond to the pacing loop our serving stage carries in Section&nbsp;8.2. Relative to this line, our contributions are a pre-committable, falsifiable segmentation test and a public-log evaluation protocol; the architecture itself is a deployment sketch.</p>
+<p><strong>Click prediction and offline evaluation.</strong> Industrial click-through-rate modeling ranges from large-scale logistic regression [15] and field-aware factorization machines [16] to attention architectures over user behavior [17,&nbsp;3]. Our click model is deliberately simpler, hierarchical empirical rates with soft cluster membership, because the architecture consumes any calibrated estimator and the allocation question is about the pairing structure, not the estimator frontier. For evaluation, replay methods [18], counterfactual reasoning in computational advertising [19], and offline A/B testing [20] establish the off-policy toolbox; the dual-model scoring of Section&nbsp;4 applies the same discipline to allocation policies specifically, where we show single-model replay inflates lift through the plan&rsquo;s own estimation noise.</p>
 
-<h2><span class="secno">10</span>Why this decomposition works</h2>
+<h2><span class="secno">10</span>Discussion</h2>
 <p><strong>The optimization lives where time is cheap.</strong> Global allocation over all campaigns and segments is a large linear program, and it is solved where minutes are available, not milliseconds. The serving path touches five small tables and does arithmetic. This is the classic plan/execute split, applied so that the online system inherits the quality of the offline optimum at lookup cost.</p>
 <p><strong>Pooling defeats sparsity.</strong> No individual generates enough clicks to estimate their own response rates. Clusters do. Soft membership then re-personalizes the pooled estimates, blending each subscriber&rsquo;s several behavioral neighborhoods instead of forcing a single label. The same back-off logic handles new campaigns (borrow from similar campaigns) and profile-less subscribers (cluster by response history alone), so one mechanism covers three cold-start problems.</p>
 <p><strong>The plan is a baseline, not a cage.</strong> Real traffic never matches the forecast. By carrying planned counts into the serving state and steering with a performance index, the system tolerates forecast error gracefully: small deviations are corrected impression by impression, and persistent ones are evidence, fed back into the next modeling cycle rather than silently accumulated.</p>
 <p><strong>Every representation is serving-shaped.</strong> Bit masks make targeting tests branchless; pre-computed distances make personalization a weighted sum; per-(cluster, campaign) rows make pacing a two-row query. The offline stage does not merely produce a model; it compiles one, in the same sense a compiler turns a program into a form the machine executes directly.</p>
 
 <h2><span class="secno">11</span>Scope and assumptions</h2>
-<p>The architecture optimizes expected revenue for a known campaign portfolio over a planning horizon; it does not address auction-based pricing, real-time bidding against external demand, or creative selection within a campaign. Its guarantees rest on the stability assumptions of Section&nbsp;5: allocation quality degrades in proportion to how far future traffic and response distributions drift from the modeled ones between refinement cycles, which sets the practical requirement for how frequently the offline stage must re-run. Exposure policy enforcement is per-subscriber and rule-based; richer fatigue models would slot into step&nbsp;2 without changing the surrounding machinery. Finally, window-fitted planning presumes a campaign portfolio stable over the planning horizon, which is the operator&rsquo;s contracted-campaign setting; in marketplaces where the ad portfolio and its delivery mix turn over within a day, the re-planning interval must shrink to the churn timescale for the plan to retain value.</p>
+<p>The architecture optimizes expected revenue for a known campaign portfolio over a planning horizon; it does not address auction-based pricing, real-time bidding against external demand, or creative selection within a campaign. Its guarantees rest on the stability assumptions of Section&nbsp;8.1: allocation quality degrades in proportion to how far future traffic and response distributions drift from the modeled ones between refinement cycles, which sets the practical requirement for how frequently the offline stage must re-run. Exposure policy enforcement is per-subscriber and rule-based; richer fatigue models would slot into step&nbsp;2 without changing the surrounding machinery. Finally, window-fitted planning presumes a campaign portfolio stable over the planning horizon, which is the operator&rsquo;s contracted-campaign setting; in marketplaces where the ad portfolio and its delivery mix turn over within a day, the re-planning interval must shrink to the churn timescale for the plan to retain value.</p>
 
 <h2>References</h2>
 <ol class="refs">
