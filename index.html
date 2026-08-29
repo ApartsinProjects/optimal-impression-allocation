@@ -264,9 +264,33 @@
   }
   .pdf-badge:hover { background: var(--teal); }
   .pdf-badge:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
-  @media print { .pdf-badge { display: none; } }
+  @media print { .pdf-badge, .docx-badge { display: none; } }
+
+  .docx-badge {
+    position: fixed;
+    top: 14px;
+    right: 92px;
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #FFFFFF;
+    background: var(--teal);
+    border-radius: 999px;
+    padding: .42rem .95rem;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(28, 39, 51, .18);
+  }
+  .docx-badge:hover { background: var(--accent); }
+  .docx-badge:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 </style>
 
+<a class="docx-badge" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper.docx" target="_blank" rel="noopener">&#8595; DOCX</a>
 <a class="pdf-badge" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper.pdf" target="_blank" rel="noopener">&#8595; PDF</a>
 
 <div class="page">
