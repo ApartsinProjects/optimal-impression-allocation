@@ -1,4 +1,4 @@
-# Optimal Impression Allocation
+# Segment Where the Interaction Persists
 
 A technical report on a two-stage architecture for revenue-optimal ad impression allocation in operator-run mobile advertising: offline predictive modeling and linear-programming allocation planning, online table-driven decisioning with pacing, and a closed feedback loop.
 
@@ -22,6 +22,6 @@ python alloc_sim.py
 
 Twenty replications of a synthetic market (60 audience segments, 25 campaigns, ~200,000 impressions per run). The planned policy achieves a mean 6.5% revenue lift and 33% expected-click lift over greedy serving on identical event streams, capturing 94% of the hindsight offline optimum. The harness verifies both policies against the hindsight bound in every replication and includes a uniform-probability control whose measured lift is zero.
 
-## Real-log replay (Section 8)
+## Real-log replay (Sections 4-6 of the paper)
 
-`h2_replay.py` reconstructs an allocation market from the public Taobao display-ad dataset (Tianchi dataset 56 / Kaggle mirror) and replays greedy, LP-planned, and dual-price pacing policies under walk-forward dual-model scoring; `h2_errorbars.py` and `h2_wf_analyze.py` compute the closed-form error bars and fold-combined statistics reported in the paper.
+`h2_replay.py` reconstructs an allocation market (with quota-stress, re-solved-plan, and tuned/warm dual-price policies) from the public Taobao display-ad dataset (Tianchi dataset 56 / Kaggle mirror) and replays greedy, LP-planned, and dual-price pacing policies under walk-forward dual-model scoring; `h2_errorbars.py` and `h2_wf_analyze.py` compute the closed-form error bars and fold-combined statistics; `h2_cluster_boot.py` runs the user-clustered bootstrap and `h2_matched_action.py` the matched-action outcome bracket reported in the paper.
