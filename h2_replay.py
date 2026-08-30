@@ -41,7 +41,7 @@ PROFILE_COLS = ["cms_segid", "cms_group_id", "final_gender_code", "age_level",
                 "pvalue_level", "shopping_level", "occupation", "new_user_class_level"]
 
 
-def solve_lp(nC, nS, supply, quota, P, elig_mask=None):
+def solve_lp(nC, nS, supply, quota, P, elig_mask=None, want_duals=False):
     """max sum x_cs P_cs  s.t.  sum_c x_cs <= supply_s, sum_s x_cs <= quota_c."""
     idx = [(c, s) for c in range(nC) for s in range(nS)
            if (elig_mask is None or elig_mask[c, s])]
@@ -56,6 +56,10 @@ def solve_lp(nC, nS, supply, quota, P, elig_mask=None):
     x = np.zeros((nC, nS))
     for j, (c, s) in enumerate(idx):
         x[c, s] = r.x[j]
+    if want_duals:
+        # shadow price of each quota constraint (>=0 for the max problem)
+        lam = -np.asarray(r.ineqlin.marginals)[nS:]
+        return x, -r.fun, np.maximum(lam, 0.0)
     return x, -r.fun
 
 
@@ -70,7 +74,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--uniform-p", action="store_true")
     ap.add_argument("--seg-mode",
-                    choices=["cluster_slot", "tier_demo", "tier_only", "demo_only", "tier8_only"],
+                    choices=["cluster_slot", "tier_demo", "tier_only", "demo_only",
+                             "tier8_only", "tier16_only"],
                     default="cluster_slot")
     ap.add_argument("--replay-days", default="12,13", help="comma list of replay days")
     ap.add_argument("--train-days", default="6,11", help="lo,hi inclusive train-day range")
@@ -80,6 +85,12 @@ def main():
                     help="EB shrinkage for the PLANNING table only (default: --alpha)")
     ap.add_argument("--dual-eta", type=float, default=0.5,
                     help="dual-price baseline learning rate, in units of global CTR")
+    ap.add_argument("--quota-scale", type=float, default=1.0,
+                    help="scale quotas above realized delivery (over-subscription stress)")
+    ap.add_argument("--replan-every", type=int, default=0,
+                    help="if >0, re-solve the LP every N served events (re-solved-LP baseline)")
+    ap.add_argument("--dual-mode", choices=["plain", "tuned_warm", "all"], default="plain",
+                    help="all: run plain, tuned-cold, and tuned-warm dual variants in one run")
     args = ap.parse_args()
 
     tlo, thi = args.train_days.split(",")
@@ -129,18 +140,25 @@ def main():
           FROM ev LEFT JOIN ucl ON ev.user_id = ucl.userid""")
     else:
         # tier-based modes: activity tier from the train window only
-        tier_case = ("""CASE WHEN count(*)>=200 THEN 7 WHEN count(*)>=100 THEN 6
+        if args.seg_mode == "tier16_only":
+            cuts = [5, 7, 10, 15, 20, 30, 40, 50, 75, 100, 150, 200, 300, 500, 800]
+            tier_case = ("CASE " + " ".join(
+                f"WHEN count(*)>={c} THEN {len(cuts)-i}" for i, c in enumerate(reversed(cuts)))
+                + " ELSE 0 END")
+        elif args.seg_mode == "tier8_only":
+            tier_case = """CASE WHEN count(*)>=200 THEN 7 WHEN count(*)>=100 THEN 6
                         WHEN count(*)>=50 THEN 5 WHEN count(*)>=30 THEN 4
                         WHEN count(*)>=20 THEN 3 WHEN count(*)>=10 THEN 2
                         WHEN count(*)>=5 THEN 1 ELSE 0 END"""
-                     if args.seg_mode == "tier8_only" else
-                     """CASE WHEN count(*)>=100 THEN 3 WHEN count(*)>=30 THEN 2
-                        WHEN count(*)>=10 THEN 1 ELSE 0 END""")
+        else:
+            tier_case = """CASE WHEN count(*)>=100 THEN 3 WHEN count(*)>=30 THEN 2
+                        WHEN count(*)>=10 THEN 1 ELSE 0 END"""
         con.execute(f"""CREATE TEMP TABLE tier AS
           SELECT user_id, {tier_case} AS vt
           FROM ev WHERE {TD} GROUP BY 1""")
         seg_expr = {
             "tier8_only": "COALESCE(t.vt, 0)",
+            "tier16_only": "COALESCE(t.vt, 0)",
             "tier_demo": """COALESCE(t.vt, 0) * 40
                  + (COALESCE(up.final_gender_code, -1) + 2) * 10
                  + (COALESCE(up.age_level, -1) + 1)""",
@@ -148,7 +166,8 @@ def main():
             "demo_only": """(COALESCE(up.final_gender_code, -1) + 2) * 10
                  + (COALESCE(up.age_level, -1) + 1)""",
         }[args.seg_mode]
-        nS = {"tier_demo": 168, "tier_only": 4, "demo_only": 48, "tier8_only": 8}[args.seg_mode]
+        nS = {"tier_demo": 168, "tier_only": 4, "demo_only": 48,
+              "tier8_only": 8, "tier16_only": 16}[args.seg_mode]
         con.execute(f"""CREATE OR REPLACE TEMP VIEW evs AS
           SELECT ev.*, {seg_expr} AS seg
           FROM ev LEFT JOIN tier t USING (user_id)
@@ -159,8 +178,8 @@ def main():
     def build_P(day_filter, alpha, min_count, g, with_counts=False):
         camp = con.execute(f"""SELECT campaign_id, sum(clk) s, count(*) c FROM evs
           JOIN topc USING (campaign_id) WHERE {day_filter} GROUP BY 1""").df()
-        mid = {"cluster_slot": 12, "tier_demo": 40,
-               "tier_only": nS, "demo_only": nS, "tier8_only": nS}[args.seg_mode]
+        mid = {"cluster_slot": 12, "tier_demo": 40, "tier_only": nS,
+               "demo_only": nS, "tier8_only": nS, "tier16_only": nS}[args.seg_mode]
         cs_t = con.execute(f"""SELECT campaign_id, seg, sum(clk) s, count(*) c FROM evs
           JOIN topc USING (campaign_id) WHERE {day_filter} GROUP BY 1,2 HAVING count(*) >= {min_count}""").df()
         ccl_t = con.execute(f"""SELECT campaign_id, seg // {mid} AS cl, sum(clk) s, count(*) c FROM evs
@@ -204,8 +223,9 @@ def main():
     quota = np.zeros(nC)
     for c_id, c in replay.groupby("campaign_id").size().items():
         quota[camp_ix[c_id]] = c
+    quota = np.ceil(quota * args.quota_scale)
 
-    plan, plan_obj = solve_lp(nC, nS, forecast, quota, P)      # planner sees train only
+    plan, plan_obj, plan_duals = solve_lp(nC, nS, forecast, quota, P, want_duals=True)  # planner sees train only
     _, bound = solve_lp(nC, nS, realized, quota, P_eval)       # bound under EVAL model
     _, bound_plan_model = solve_lp(nC, nS, realized, quota, P)  # diagnostic only
 
@@ -237,31 +257,194 @@ def main():
             val_plan_model += P[c, s]
         return val, val_plan_model, served, assign
 
-    def serve_dual(eta_ctr):
-        """Adaptive plan-free baseline: greedy on P - mu_c with pacing duals.
-        mu_c rises when campaign c runs ahead of its quota pace, falls behind."""
-        eta = eta_ctr * g_ctr
+    def dual_pass(stream, eta, mu0, score_M, q, target=None):
+        """One dual-price serving pass over `stream`; scores under score_M.
+        Pacing target is `target` (feasible planned delivery) when given,
+        else the raw quota q; quotas always cap serving."""
+        D = np.maximum(target if target is not None else q, 1.0)
         served = np.zeros(nC)
         assign = np.zeros((nC, nS))
-        mu = np.zeros(nC)
-        T = float(len(segs))
+        mu = mu0.copy()
+        T = float(len(stream))
         val = 0.0
-        for t, s in enumerate(segs, 1):
-            ok = np.where(served < quota)[0]
+        for t, s in enumerate(stream, 1):
+            ok = np.where(served < q)[0]
+            if len(ok) == 0:
+                continue
             c = ok[np.argmax(P[ok, s] - mu[ok])]
             served[c] += 1
             assign[c, s] += 1
+            val += score_M[c, s]
+            mu[c] += eta * (served[c] / D[c] - t / T)
+        return val, served, assign
+
+    def dmd_pass(stream, eta, geometry, score_M, q, D):
+        """Dual mirror descent (Balseiro, Lu, Mirrokni 2020) over `stream`.
+        Per step: serve argmax_c (P[c,s] - mu_c) among quota-remaining c; then
+        mirror-descent the duals on subgradient g_c = rho_c - a_c, where
+        rho_c = D_c / T is the target consumption rate and a_c the realized
+        consumption. Euclidean: mu <- max(0, mu - eta*g). Entropic (multiplicative
+        weights): mu <- mu * exp(-eta*g), mu init to a small positive constant."""
+        T = float(len(stream))
+        rho = np.maximum(D, 1.0) / T
+        mu = np.full(nC, g_ctr * 0.1) if geometry == "entropic" else np.zeros(nC)
+        served = np.zeros(nC)
+        assign = np.zeros((nC, nS))
+        val = 0.0
+        for s in stream:
+            ok = np.where(served < q)[0]
+            if len(ok) == 0:
+                continue
+            c = ok[np.argmax(P[ok, s] - mu[ok])]
+            served[c] += 1
+            assign[c, s] += 1
+            val += score_M[c, s]
+            g = rho.copy()
+            g[c] -= 1.0
+            if geometry == "entropic":
+                mu = np.clip(mu * np.exp(-eta * g), 1e-9, 10.0)
+            else:
+                mu = np.maximum(0.0, mu - eta * g)
+        return val, served, assign
+
+    def tune_dmd(geometry, D):
+        tune = con.execute(f"""SELECT evs.seg FROM evs JOIN topc USING (campaign_id)
+          WHERE day = {thi} AND hash(evs.user_id + 3) % 2 = 0 ORDER BY time_stamp""").df()["seg"].to_numpy()
+        tq = np.maximum(np.round(quota * len(tune) / max(len(segs), 1)), 1.0)
+        tune = tune[:int(tq.sum())]
+        tD = np.maximum(D * len(tune) / max(len(segs), 1), 1.0)
+        best_e, best_v = None, -1.0
+        for e in [0.05, 0.15, 0.5, 1.5, 5.0]:
+            v, _, _ = dmd_pass(tune, e * g_ctr, geometry, P, tq, tD)
+            if v > best_v:
+                best_v, best_e = v, e
+        return best_e
+
+    def serve_fixed_dual(mu_star):
+        """Non-adaptive optimal-dual policy: serve argmax_c (P[c,s] - mu_star[c])
+        among quota-remaining campaigns, with randomized tie-breaking, using the
+        EXACT optimal quota shadow prices of the (over-subscribed) plan LP. No
+        adaptation. Tests whether per-campaign pricing, not the pacing update,
+        is what fails under contention. Deterministic RNG seeded by index."""
+        served = np.zeros(nC)
+        assign = np.zeros((nC, nS))
+        score = P - mu_star[:, None]
+        val = 0.0
+        for i, s in enumerate(segs):
+            ok = np.where(served < quota)[0]
+            if len(ok) == 0:
+                continue
+            sc = score[ok, s]
+            top = sc.max()
+            tied = ok[sc >= top - 1e-12]
+            c = tied[(i * 2654435761) % len(tied)] if len(tied) > 1 else tied[0]
+            served[c] += 1
+            assign[c, s] += 1
             val += P_eval[c, s]
-            mu[c] += eta * (served[c] / quota[c] - t / T)
+        return val, assign
+
+    def tune_eta(mu0):
+        """Pick eta by simulated serving on a half-subsample of the LAST
+        TRAINING DAY's stream, valued under the planning model only."""
+        tune = con.execute(f"""SELECT evs.seg FROM evs JOIN topc USING (campaign_id)
+          WHERE day = {thi} AND hash(evs.user_id + 3) % 2 = 0
+          ORDER BY time_stamp""").df()["seg"].to_numpy()
+        tq = np.maximum(np.round(quota * len(tune) / max(len(segs), 1)), 1.0)
+        tune = tune[:int(tq.sum())]
+        tD = tq * min(1.0, len(tune) / max(tq.sum(), 1.0))
+        best_eta, best_v = None, -1.0
+        for e in [0.05, 0.1, 0.25, 0.5]:
+            v, _, _ = dual_pass(tune, e * g_ctr, mu0, P, tq, target=tD)
+            if v > best_v:
+                best_v, best_eta = v, e
+        return best_eta
+
+    def serve_dual(eta_ctr):
+        if args.dual_mode == "plain":
+            return dual_pass(segs, eta_ctr * g_ctr, np.zeros(nC), P_eval, quota)
+        eta = tune_eta(plan_duals)
+        print(f"tuned_warm: eta={eta}")
+        return dual_pass(segs, eta * g_ctr, plan_duals, P_eval, quota)
+
+    def serve_replan(every):
+        """Re-solved-LP baseline: every `every` events, re-solve the LP on the
+        remaining quotas and the proportionally remaining supply forecast."""
+        served = np.zeros(nC)
+        assign = np.zeros((nC, nS))
+        T = float(len(segs))
+        remaining = None
+        val = 0.0
+        for t, s in enumerate(segs):
+            if t % every == 0:
+                rem_q = np.maximum(quota - served, 0)
+                rem_sup = forecast * max(1.0 - t / T, 1e-9)
+                remaining, _ = solve_lp(nC, nS, rem_sup, rem_q, P)
+            c = None
+            cand = np.where(remaining[:, s] > 0.5)[0]
+            cand = cand[served[cand] < quota[cand]]
+            if len(cand):
+                c = cand[np.argmax(remaining[cand, s])]
+                remaining[c, s] -= 1.0
+            if c is None:
+                for cc in order_p[:, s]:
+                    if served[cc] < quota[cc]:
+                        c = cc
+                        break
+            served[c] += 1
+            assign[c, s] += 1
+            val += P_eval[c, s]
         return val, served, assign
 
     g_val, g_val_pm, g_served, g_assign = serve(False)
     p_val, p_val_pm, p_served, p_assign = serve(True)
-    d_val, d_served, d_assign = serve_dual(args.dual_eta)
-    np.savez_compressed(os.path.join(BASE, "results", f"h2_{args.tag}_assign.npz"),
-                        P=P, P_eval=P_eval, N_eval=N_eval, g_assign=g_assign,
-                        p_assign=p_assign, d_assign=d_assign, quota=quota,
-                        forecast=forecast, realized=realized)
+    extra = {}
+    if args.dual_mode == "all":
+        # feasibility-aware pacing targets: plain/cold pace toward the
+        # proportionally feasible delivery (plan-free; uses only the forecast
+        # total); warm paces toward the LP's own planned deliverable.
+        feas = min(1.0, forecast.sum() / max(quota.sum(), 1.0))
+        D_prop = quota * feas
+        D_plan = plan.sum(axis=1)
+        d_val, d_served, d_assign = dual_pass(segs, args.dual_eta * g_ctr,
+                                              np.zeros(nC), P_eval, quota, target=D_prop)
+        eta_c = tune_eta(np.zeros(nC))
+        dc_val, _, dc_assign = dual_pass(segs, eta_c * g_ctr, np.zeros(nC),
+                                         P_eval, quota, target=D_prop)
+        eta_w = tune_eta(plan_duals)
+        dw_val, _, dw_assign = dual_pass(segs, eta_w * g_ctr, plan_duals,
+                                         P_eval, quota, target=D_plan)
+        df_val, df_assign = serve_fixed_dual(plan_duals)
+        # modern dual mirror descent, both geometries, tuned on planning window
+        eta_de = tune_dmd("euclidean", D_prop)
+        de_val, _, de_assign = dmd_pass(segs, eta_de * g_ctr, "euclidean", P_eval, quota, D_prop)
+        eta_dt = tune_dmd("entropic", D_prop)
+        dt_val, _, dt_assign = dmd_pass(segs, eta_dt * g_ctr, "entropic", P_eval, quota, D_prop)
+        print(f"all-duals: eta_cold={eta_c} eta_warm={eta_w} fixed={df_val:.1f} "
+              f"dmd_eucl(eta={eta_de})={de_val:.1f} dmd_entr(eta={eta_dt})={dt_val:.1f}")
+        extra = {"dual_cold_exp_clicks": dc_val, "dual_warm_exp_clicks": dw_val,
+                 "dual_fixed_exp_clicks": df_val,
+                 "dmd_eucl_exp_clicks": de_val, "dmd_entr_exp_clicks": dt_val,
+                 "eta_cold": eta_c, "eta_warm": eta_w, "eta_dmd_eucl": eta_de, "eta_dmd_entr": eta_dt,
+                 "dc_assign": dc_assign, "dw_assign": dw_assign, "df_assign": df_assign,
+                 "de_assign": de_assign, "dt_assign": dt_assign}
+        for v in (df_val, dc_val, dw_val, de_val, dt_val):
+            assert v <= bound * (1 + 1e-9), "INVARIANT FAIL: dual variant > hindsight"
+    else:
+        d_val, d_served, d_assign = serve_dual(args.dual_eta)
+    if args.replan_every > 0:
+        r_val, r_served, r_assign = serve_replan(args.replan_every)
+        assert r_val <= bound * (1 + 1e-9), "INVARIANT FAIL: replan > hindsight"
+    else:
+        r_val, r_served, r_assign = None, None, None
+    arrs = dict(P=P, P_eval=P_eval, N_eval=N_eval, g_assign=g_assign,
+                p_assign=p_assign, d_assign=d_assign, quota=quota,
+                forecast=forecast, realized=realized)
+    if r_assign is not None:
+        arrs["r_assign"] = r_assign
+    for k in ("dc_assign", "dw_assign", "df_assign", "de_assign", "dt_assign"):
+        if k in extra:
+            arrs[k] = extra.pop(k)
+    np.savez_compressed(os.path.join(BASE, "results", f"h2_{args.tag}_assign.npz"), **arrs)
 
     assert g_val <= bound * (1 + 1e-9), "INVARIANT FAIL: greedy > hindsight"
     assert p_val <= bound * (1 + 1e-9), "INVARIANT FAIL: planned > hindsight"
@@ -279,6 +462,10 @@ def main():
            "planned_pct_of_bound": p_val / bound * 100,
            "dual_pct_of_bound": d_val / bound * 100,
            "quota_fill_dual": float(d_served.sum() / quota.sum()),
+           **extra,
+           "replan_exp_clicks": r_val,
+           "lift_planned_vs_replan_pct": ((p_val - r_val) / r_val * 100) if r_val else None,
+           "replan_pct_of_bound": (r_val / bound * 100) if r_val else None,
            "quota_fill_greedy": float(g_served.sum() / quota.sum()),
            "quota_fill_planned": float(p_served.sum() / quota.sum()),
            "diag_plan_model": {"greedy": g_val_pm, "planned": p_val_pm,
