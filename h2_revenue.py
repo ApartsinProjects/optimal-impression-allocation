@@ -89,6 +89,8 @@ cpc=np.where(is_cpc, w/pbar, 0.0)           # CPC: value = cpc*p ; at avg p -> w
 cpm=np.where(is_cpc, 0.0, w)               # CPM: flat value w
 beta=PENALTY_MULT*w                          # makegood per undelivered imp
 
+if os.environ.get("CLICK"):   # pure click objective: value=p for all campaigns, no penalty
+    is_cpc[:]=True; cpc[:]=1.0; cpm[:]=0.0; beta[:]=0.0
 def gross_plan(): return np.where(is_cpc[:,None], cpc[:,None]*P,      cpm[:,None]*np.ones((1,NS)))
 def gross_eval(): return np.where(is_cpc[:,None], cpc[:,None]*P_eval, cpm[:,None]*np.ones((1,NS)))
 Vp=gross_plan()                              # planning gross value coeff
@@ -156,11 +158,13 @@ for sc in SCALES:
       'planned':dict(mode='plan',quota=quota,plan=plan),
       're-solved':dict(mode='replan',quota=quota,every=20000),
       'fixed-dual':dict(mode='fixeddual',quota=quota,mu=mu_star),
-      'scalar':dict(mode='dmd',quota=quota,mu=np.full(nC,g),eta=0.0,geom='eucl'),  # eta=0 -> static scalar? no; use small
-      'DMD-entr':dict(mode='dmd',quota=quota,mu=np.full(nC,w.mean()*0.1),eta=0.5*w.mean(),geom='entr'),
     }
-    # scalar pacing: euclidean DMD with a single learning rate on all duals
-    pols['scalar']=dict(mode='dmd',quota=quota,mu=np.zeros(nC),eta=0.5*w.mean(),geom='eucl')
+    # learning rate / dual init scale with the VALUE magnitude (click prob ~g in
+    # CLICK mode, willingness ~w.mean() in revenue mode); otherwise the updates
+    # overshoot by ~20x on the click objective.
+    vsc = g if os.environ.get("CLICK") else float(w.mean())
+    pols['scalar']=dict(mode='dmd',quota=quota,mu=np.zeros(nC),eta=0.5*vsc,geom='eucl')
+    pols['DMD-entr']=dict(mode='dmd',quota=quota,mu=np.full(nC,vsc*0.1),eta=0.5*vsc,geom='entr')
     res={n:serve(**kw) for n,kw in pols.items()}
     gnet,gserved=res['greedy']
     fill=gserved.sum()/quota.sum()*100
