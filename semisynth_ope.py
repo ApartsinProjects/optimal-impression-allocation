@@ -66,8 +66,13 @@ inter=rate-camp[:,None]-seg_mean[None,:]+g
 theta=np.clip(camp[:,None]+seg_mean[None,:]-g+KAPPA*inter,0.001,0.5)
 
 def sample_table(dfilt):
-    """Fit a click table from Bernoulli(theta) outcomes on the real exposures."""
+    """Fit a click table from Bernoulli(theta) outcomes on the real exposures.
+    ADV=1: the logging policy selects on OUTCOME -- exposures reweighted by theta,
+    so high-response cells are over-observed and low-response cells starve. This is
+    the worst case for a scorer fit on logged data (maximally selected logging)."""
     N,_=agg(dfilt)
+    if os.environ.get("ADV"):
+        N=np.round(N*(theta/theta.mean())).astype(float)   # outcome-correlated logging
     Ssim=rng.binomial(N.astype(int),theta)
     base=np.where(N.sum(1)>=MINC,(Ssim.sum(1)+ALPHA*g)/(N.sum(1)+ALPHA),g)
     M=np.tile(base[:,None],(1,NS))
