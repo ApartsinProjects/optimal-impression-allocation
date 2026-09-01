@@ -1,4 +1,4 @@
-<title>Segment Where the Interaction Persists</title>
+<title>Impression Allocation under Campaign Quotas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -247,52 +247,24 @@
   a { color: var(--teal); }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
-  .pdf-badge {
-    position: fixed;
-    top: 14px;
-    right: 14px;
-    z-index: 10;
-    display: inline-flex;
-    align-items: center;
-    gap: .45rem;
+  .badges {
+    position: fixed; top: 12px; right: 12px; z-index: 10;
+    display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .4rem;
+    max-width: 62vw;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: .3rem;
     font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: .78rem;
-    font-weight: 600;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: #FFFFFF;
-    background: var(--accent);
-    border-radius: 999px;
-    padding: .42rem .95rem;
-    text-decoration: none;
+    font-size: .7rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+    color: #FFFFFF; background: var(--muted);
+    border-radius: 999px; padding: .32rem .66rem; text-decoration: none;
     box-shadow: 0 2px 8px rgba(28, 39, 51, .18);
   }
-  .pdf-badge:hover { background: var(--teal); }
-  .pdf-badge:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
-  @media print { .pdf-badge, .docx-badge { display: none; } }
-
-  .docx-badge {
-    position: fixed;
-    top: 14px;
-    right: 92px;
-    z-index: 10;
-    display: inline-flex;
-    align-items: center;
-    gap: .45rem;
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: .78rem;
-    font-weight: 600;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: #FFFFFF;
-    background: var(--teal);
-    border-radius: 999px;
-    padding: .42rem .95rem;
-    text-decoration: none;
-    box-shadow: 0 2px 8px rgba(28, 39, 51, .18);
-  }
-  .docx-badge:hover { background: var(--accent); }
-  .docx-badge:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .badge.tex { background: var(--teal); }
+  .badge.pdf { background: var(--accent); }
+  .badge:hover { filter: brightness(1.08); }
+  .badge:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  @media print { .badges { display: none; } }
   .downloads {
     margin: 1.4rem auto 0;
     max-width: 640px;
@@ -312,26 +284,22 @@
   @media print { .downloads { display: none; } }
 </style>
 
-<a class="docx-badge" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper.docx" target="_blank" rel="noopener">&#8595; DOCX</a>
-<a class="pdf-badge" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper.pdf" target="_blank" rel="noopener">&#8595; PDF</a>
+<nav class="badges no-print no-docx" aria-label="Downloads">
+  <a class="badge tex" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_latex.pdf" target="_blank" rel="noopener">&#8595; LaTeX PDF</a>
+  <a class="badge pdf" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_2col.pdf" target="_blank" rel="noopener">&#8595; 2-col PDF</a>
+  <a class="badge" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_2col.docx" target="_blank" rel="noopener">&#8595; 2-col DOCX</a>
+  <a class="badge pdf" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_1col.pdf" target="_blank" rel="noopener">&#8595; 1-col PDF</a>
+  <a class="badge" href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_1col.docx" target="_blank" rel="noopener">&#8595; 1-col DOCX</a>
+</nav>
 
 <div class="page">
 
 <header class="masthead">
   <p class="eyebrow">Preprint</p>
-  <h1>Segment Where the Interaction Persists</h1>
-  <p class="standfirst">A Segmentation Rule and a Regime Map for When Planning Beats Online Pacing in Quota-Constrained Ad Allocation</p>
+  <h1>Impression Allocation under Campaign Quotas: A Persistence Rule for Segmentation and a Regime Map for Pacing</h1>
   <p class="byline">Alexander Apartsin<sup>1</sup>&ensp;&middot;&ensp;Yehudit Aperstein<sup>2</sup></p>
   <p class="affil"><sup>1</sup>School of Computer Science, Faculty of Sciences, Holon Institute of Technology (HIT), Holon, Israel<br>
   <sup>2</sup>Intelligent Systems, Afeka Academic College of Engineering, Tel-Aviv, Israel</p>
-  <p class="downloads no-print no-docx">
-    <span class="dl-label">Download</span>&nbsp;&nbsp;
-    <span class="grp">LaTeX two-column&nbsp;<a href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_latex.pdf" target="_blank" rel="noopener">PDF</a>&nbsp;&middot;&nbsp;<a href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_latex_src.zip" target="_blank" rel="noopener">TeX</a></span>
-    <span class="sep">|</span>
-    <span class="grp">Word&nbsp;<a href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_2col.docx" target="_blank" rel="noopener">two-col</a>&nbsp;&middot;&nbsp;<a href="https://apartsinprojects.github.io/optimal-impression-allocation/paper_1col.docx" target="_blank" rel="noopener">one-col</a></span>
-    <span class="sep">|</span>
-    <span class="grp">Web&nbsp;<a href="https://apartsinprojects.github.io/optimal-impression-allocation/paper.pdf" target="_blank" rel="noopener">PDF</a></span>
-  </p>
 </header>
 
 <section class="abstract">
